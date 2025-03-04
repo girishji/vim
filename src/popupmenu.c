@@ -271,7 +271,8 @@ pum_display(
 		pum_width = pum_col - pum_scrollbar + 1;
 	    else
 #endif
-		pum_width = Columns - pum_col - pum_scrollbar;
+		// pum_width = Columns - pum_col - pum_scrollbar;
+		pum_width = Columns - pum_col - pum_scrollbar - 1;
 
 	    content_width = max_width + pum_kind_width + pum_extra_width + 1;
 	    if (pum_width > content_width && pum_width > p_pw)
@@ -631,16 +632,19 @@ pum_redraw(void)
 	if (pum_rl)
 	{
 	    if (pum_col < curwin->w_wincol + curwin->w_width - 1)
-		screen_putchar(' ', row, pum_col + 1, attr);
+		screen_puts_len((char_u *)" |", 2, row, pum_col + 1, attr);
+		// screen_putchar(' ', row, pum_col + 1, attr);
 	}
 	else
 #endif
+	    // if (pum_col > 0)
+		// screen_putchar(' ', row, pum_col - 1, attr);
 	    if (pum_col > 0)
-		screen_putchar(' ', row, pum_col - 1, attr);
+		screen_puts_len((char_u *)"| ", 2, row, pum_col - 1, attr);
 
 	// Display each entry, use two spaces for a Tab.
 	// Do this 3 times and order from p_cia
-	col = pum_col;
+	col = pum_col + 1;
 	totwidth = 0;
 	pum_align_order(order);
 	basic_width = items_width_array[order[0]];
@@ -825,7 +829,11 @@ pum_redraw(void)
 	else
 #endif
 	    screen_fill(row, row + 1, col, pum_col + pum_width, ' ', ' ',
+	    // screen_fill(row, row + 1, col, pum_col + pum_width, ' ', ' ',
 								orig_attr);
+
+	// screen_puts_len((char_u *)" |", 2, row, pum_col + pum_width, attr)
+
 	if (pum_scrollbar > 0)
 	{
 #ifdef FEAT_RIGHTLEFT
@@ -839,6 +847,8 @@ pum_redraw(void)
 			i >= thumb_pos && i < thumb_pos + thumb_height
 						  ? attr_thumb : attr_scroll);
 	}
+
+	screen_putchar('|', row, pum_col + pum_width + 1, attr);
 
 	++row;
     }
