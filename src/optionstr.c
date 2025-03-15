@@ -1564,13 +1564,13 @@ did_set_complete(optset_T *args)
 	    s++;
 	if (!*s)
 	    break;
-	if (vim_strchr((char_u *)".wbuksid]tU", *s) == NULL)
+	if (vim_strchr((char_u *)".wbuksid]tUf", *s) == NULL)
 	    return illegal_char(args->os_errbuf, args->os_errbuflen, *s);
 	if (*++s != NUL && *s != ',' && *s != ' ')
 	{
-	    if (s[-1] == 'k' || s[-1] == 's')
+	    if (s[-1] == 'k' || s[-1] == 's' || s[-1] == 'f')
 	    {
-		// skip optional filename after 'k' and 's'
+		// skip optional filename and funcname
 		while (*s && *s != ',' && *s != ' ')
 		{
 		    if (*s == '\\' && s[1] != NUL)
@@ -1598,7 +1598,7 @@ did_set_complete(optset_T *args)
 expand_set_complete(optexpand_T *args, int *numMatches, char_u ***matches)
 {
     static char *(p_cpt_values[]) = {
-	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U",
+	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U", "f",
 	NULL};
     return expand_set_opt_string(
 	    args,

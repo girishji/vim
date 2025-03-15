@@ -206,6 +206,21 @@ static int	  *compl_fuzzy_scores;
 static pumitem_T *compl_match_array = NULL;
 static int compl_match_arraysize;
 
+/*
+ * Structure representing a userdefined function specified in the 'complete' (cpt) option.
+ */
+typedef struct cpt_func_info_S cpt_func_info_T;
+struct cpt_func_info_S
+{
+    cpt_func_info_T	*cf_next;
+    char_u		*cf_funcname;	    // name string
+    callback_T		cf_cb;		    // callback to userdefined func
+    int			cf_refresh_always;  // when 'refresh' option is set in reply
+    int			cf_status;	    // whether to call func second time (findstart=0)
+    char_u		*cf_base;	    // string obtained after findstart=1
+};
+static cpt_func_info_T *cpt_func_list = NULL;
+
 static int ins_compl_add(char_u *str, int len, char_u *fname, char_u **cptext, typval_T *user_data, int cdir, int flags, int adup, int *user_hl);
 static void ins_compl_longest_match(compl_T *match);
 static void ins_compl_del_pum(void);
@@ -229,6 +244,10 @@ static void show_pum(int prev_w_wrow, int prev_w_leftcol);
 static unsigned  quote_meta(char_u *dest, char_u *str, int len);
 static int ins_compl_has_multiple(void);
 static void ins_compl_expand_multiple(char_u *str);
+#if defined FEAT_COMPL_FUNC
+static cpt_func_info_T *get_cpt_func_info(char_u *optval);
+static void cpt_func_info_free();
+#endif
 
 #ifdef FEAT_SPELL
 static void spell_back_to_badword(void);
@@ -2171,7 +2190,7 @@ ins_compl_addleader(int c)
 	ins_compl_restart();
 
     // When 'always' is set, don't reset compl_leader. While completing,
-    // cursor doesn't point original position, changing compl_leader would
+    // cursor doesn't point to original position, changing compl_leader would
     // break redo.
     if (!compl_opt_refresh_always)
     {
@@ -2197,6 +2216,7 @@ ins_compl_addleader(int c)
 ins_compl_restart(void)
 {
     ins_compl_free();
+    cpt_func_info_free();
     compl_started = FALSE;
     compl_matches = 0;
     compl_cont_status = 0;
@@ -2939,6 +2959,12 @@ get_complete_funcname(int type)
     static callback_T *
 get_insert_callback(int type)
 {
+    if (*get_complete_funcname(type) == NUL)
+    {
+	semsg(_(e_option_str_is_not_set), ctrl_x_mode_function()
+		? "completefunc" : "omnifunc");
+	return NULL;
+    }
     if (type == CTRL_X_FUNCTION)
 	return &curbuf->b_cfu_cb;
     if (type == CTRL_X_OMNI)
@@ -2950,23 +2976,19 @@ get_insert_callback(int type)
 /*
  * Execute user defined complete function 'completefunc', 'omnifunc' or
  * 'thesaurusfunc', and get matches in "matches".
- * "type" is either CTRL_X_OMNI or CTRL_X_FUNCTION or CTRL_X_THESAURUS.
  */
     static void
-expand_by_function(int type, char_u *base)
+expand_by_function(callback_T *cb, char_u *base)
 {
     list_T      *matchlist = NULL;
     dict_T	*matchdict = NULL;
     typval_T	args[3];
-    char_u	*funcname;
     pos_T	pos;
-    callback_T	*cb;
     typval_T	rettv;
     int		save_State = State;
     int		retval;
 
-    funcname = get_complete_funcname(type);
-    if (*funcname == NUL)
+    if (cb == NULL || base == NULL)
 	return;
 
     // Call 'completefunc' to obtain the list of matches.
@@ -2982,7 +3004,6 @@ expand_by_function(int type, char_u *base)
     // Insert mode in another buffer.
     ++textlock;
 
-    cb = get_insert_callback(type);
     retval = call_callback(cb, 0, &rettv, 2, args);
 
     // Call a function, which returns a list or dict.
@@ -3549,6 +3570,8 @@ typedef struct
     int		found_all;		// found all matches of a certain type.
     char_u	*dict;			// dictionary file to search
     int		dict_f;			// "dict" is an exact file name or not
+    callback_T	*cpt_func_cb;		// callback to user defined function
+    char_u	*cpt_func_base;		// match pattern from user defined function
 } ins_compl_next_state_T;
 
 /*
@@ -3578,8 +3601,9 @@ process_next_cpt_value(
 	pos_T		*start_match_pos,
 	int		in_fuzzy)
 {
-    int	    compl_type = -1;
-    int	    status = INS_COMPL_CPT_OK;
+    int		    compl_type = -1;
+    int		    status = INS_COMPL_CPT_OK;
+    cpt_func_info_T *cfi;
 
     st->found_all = FALSE;
 
@@ -3662,6 +3686,20 @@ process_next_cpt_value(
 		st->dict_f = DICT_FIRST;
 	    }
 	}
+#ifdef FEAT_COMPL_FUNC
+	else if (*st->e_cpt == 'f' && *++st->e_cpt != ','
+		&& *st->e_cpt != NUL)
+	{
+	    compl_type = -1;
+	    cfi = get_cpt_func_info(st->e_cpt);
+	    if (cfi != NULL && cfi->cf_status == OK)
+	    {
+		st->cpt_func_cb = &cfi->cf_cb;
+		st->cpt_func_base = cfi->cf_base;
+		compl_type = CTRL_X_FUNCTION;
+	    }
+	}
+#endif
 #ifdef FEAT_FIND_ID
 	else if (*st->e_cpt == 'i')
 	    compl_type = CTRL_X_PATH_PATTERNS;
@@ -3705,7 +3743,7 @@ get_next_include_file_completion(int compl_type)
     find_pattern_in_path(compl_pattern.string, compl_direction,
 	    (int)compl_pattern.length, FALSE, FALSE,
 	    (compl_type == CTRL_X_PATH_DEFINES
-	     && !(compl_cont_status & CONT_SOL))
+	     && !compl_status_sol())
 	    ? FIND_DEFINE : FIND_ANY, 1L, ACTION_EXPAND,
 	    (linenr_T)1, (linenr_T)MAXLNUM, FALSE);
 }
@@ -3720,7 +3758,8 @@ get_next_dict_tsr_completion(int compl_type, char_u *dict, int dict_f)
 {
 #ifdef FEAT_COMPL_FUNC
     if (thesaurus_func_complete(compl_type))
-	expand_by_function(compl_type, compl_pattern.string);
+	expand_by_function(get_insert_callback(compl_type),
+		compl_pattern.string);
     else
 #endif
 	ins_compl_dictionaries(
@@ -4102,7 +4141,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 
 	// ctrl_x_mode_line_or_eval() || word-wise search that
 	// has added a word that was at the beginning of the line
-	if ((ctrl_x_mode_whole_line() && !in_fuzzy) || ctrl_x_mode_eval() || (compl_cont_status & CONT_SOL))
+	if ((ctrl_x_mode_whole_line() && !in_fuzzy) || ctrl_x_mode_eval() || compl_status_sol())
 	    found_new_match = search_for_exact_line(st->ins_buf,
 			    st->cur_match_pos, compl_direction, compl_pattern.string);
 	else if (in_fuzzy)
@@ -4218,8 +4257,14 @@ get_next_completion_match(int type, ins_compl_next_state_T *st, pos_T *ini)
 
 #ifdef FEAT_COMPL_FUNC
 	case CTRL_X_FUNCTION:
+	    if (ctrl_x_mode_normal())
+		expand_by_function(st->cpt_func_cb, st->cpt_func_base);
+	    else
+		expand_by_function(get_insert_callback(type),
+			compl_pattern.string);
+	    break;
 	case CTRL_X_OMNI:
-	    expand_by_function(type, compl_pattern.string);
+	    expand_by_function(get_insert_callback(type), compl_pattern.string);
 	    break;
 #endif
 
@@ -5000,7 +5045,7 @@ ins_compl_use_match(int c)
     static int
 get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
 {
-    if ((compl_cont_status & CONT_SOL) || ctrl_x_mode_path_defines())
+    if (compl_status_sol() || ctrl_x_mode_path_defines())
     {
 	if (!compl_status_adding())
 	{
@@ -5242,7 +5287,7 @@ get_cmdline_compl_info(char_u *line, colnr_T curs_col)
  * Uses the global variable: spell_bad_len
  */
     static int
-get_userdefined_compl_info(colnr_T curs_col UNUSED)
+get_userdefined_compl_info(colnr_T curs_col UNUSED, callback_T *cb)
 {
     int		ret = FAIL;
 
@@ -5255,17 +5300,10 @@ get_userdefined_compl_info(colnr_T curs_col UNUSED)
     char_u	*funcname;
     pos_T	pos;
     int		save_State = State;
-    callback_T	*cb;
 
     // Call 'completefunc' or 'omnifunc' or 'thesaurusfunc' and get pattern
-    // length as a string
-    funcname = get_complete_funcname(ctrl_x_mode);
-    if (*funcname == NUL)
-    {
-	semsg(_(e_option_str_is_not_set), ctrl_x_mode_function()
-		? "completefunc" : "omnifunc");
+    if (cb == NULL)
 	return FAIL;
-    }
 
     args[0].v_type = VAR_NUMBER;
     args[0].vval.v_number = 1;
@@ -5274,7 +5312,6 @@ get_userdefined_compl_info(colnr_T curs_col UNUSED)
     args[2].v_type = VAR_UNKNOWN;
     pos = curwin->w_cursor;
     ++textlock;
-    cb = get_insert_callback(ctrl_x_mode);
     col = call_callback_retnr(cb, 2, args);
     --textlock;
 
@@ -5296,6 +5333,8 @@ get_userdefined_compl_info(colnr_T curs_col UNUSED)
     // Return value -3 does the same as -2 and leaves CTRL-X mode.
     if (col == -3)
     {
+	if (ctrl_x_mode_normal())
+	    return FAIL;
 	ctrl_x_mode = CTRL_X_NORMAL;
 	edit_submode = NULL;
 	if (!shortmess(SHM_COMPLETIONMENU))
@@ -5375,6 +5414,159 @@ get_spell_compl_info(int startcol UNUSED, colnr_T curs_col UNUSED)
 }
 
 /*
+ * Returns the record associated with a user defined function in 'cpt'.
+ */
+    static cpt_func_info_T *
+get_cpt_func_info(char_u *optval)
+{
+#ifdef FEAT_COMPL_FUNC
+    char_u		buf[LSIZE];
+    int			slen;
+    cpt_func_info_T	*cur = cpt_func_list;
+
+    slen = copy_option_part(&optval, buf, LSIZE, ",");
+    if (slen <= 0)
+	return NULL;
+    while (cur != NULL)
+    {
+	if (STRNCMP(cur->cf_funcname, buf, slen) == 0)
+	    return cur;
+	cur = cur->cf_next;
+    }
+#endif
+    return NULL;
+}
+
+/*
+ * Free cpt_func_info list.
+ */
+    static void
+cpt_func_info_free()
+{
+#ifdef FEAT_COMPL_FUNC
+    cpt_func_info_T	    *cur = cpt_func_list;
+    cpt_func_info_T	    *temp;
+
+    while (cur != NULL)
+    {
+	free_callback(&cur->cf_cb);  // Should come before vim_free
+	vim_free(cur->cf_funcname);
+	vim_free(cur->cf_base);
+	temp = cur;
+	cur = cur->cf_next;
+	vim_free(temp);
+    }
+    cpt_func_list = NULL;
+#endif
+}
+
+/*
+ * Populate cpt_func_info list.
+ */
+    static int
+cpt_func_info_build()
+{
+#ifdef FEAT_COMPL_FUNC
+    char_u		*p_cpt;
+    char_u		buf[LSIZE];
+    int			slen;
+    cpt_func_info_T	*info;
+    cpt_func_info_T	*tail;
+    typval_T		tv;
+
+    // Make a copy in case the buffer gets wiped out
+    p_cpt = vim_strsave(curbuf->b_p_cpt);
+    if (p_cpt == NULL)
+	return FAIL;
+
+    cpt_func_info_free();
+
+    while (*p_cpt != NUL)
+    {
+	if (*p_cpt == ',' || *p_cpt == ' ')
+	{
+	    p_cpt++;
+	    continue;
+	}
+	if (*p_cpt == 'f' && *++p_cpt != ',')
+	{
+	    slen = copy_option_part(&p_cpt, buf, LSIZE, ",");
+	    if (slen > 0)
+	    {
+		info = ALLOC_CLEAR_ONE(cpt_func_info_T);
+		if (info == NULL)
+		    return FAIL;
+		info->cf_funcname = vim_strnsave(buf, (size_t)slen);
+		if (info->cf_funcname == NULL)
+		{
+		    vim_free(info);
+		    continue;
+		}
+		tv.vval.v_string = info->cf_funcname;
+		tv.v_type = VAR_FUNC;
+		info->cf_cb = get_callback(&tv);
+		if (info->cf_cb.cb_name == NULL)
+		{
+		    vim_free(info);
+		    continue;
+		}
+		if (cpt_func_list == NULL)
+		{
+		    cpt_func_list = info;
+		    tail = info;
+		}
+		else
+		{
+		    tail->cf_next = info;
+		    tail = tail->cf_next;
+		}
+	    }
+	}
+	else
+	    (void)copy_option_part(&p_cpt, IObuff, IOSIZE, ",");
+    }
+#endif
+    return OK;
+}
+
+/*
+ * Prepare userfunc expansion by calling it with findstart=1.
+ */
+    static void
+cpt_func_compl_get_info(colnr_T curs_col, int restart)
+{
+#ifdef FEAT_COMPL_FUNC
+    cpt_func_info_T	*cur = cpt_func_list;
+    colnr_T		compl_col_save;
+    int			compl_length_save;
+    string_T		compl_pattern_save;
+
+    while (cur != NULL)
+    {
+	cur->cf_status = FAIL;
+	if ((restart == FALSE || cur->cf_refresh_always == TRUE)
+		&& cur->cf_cb.cb_name != NULL)
+	{
+	    // `compl_col` is always set by `get_normal_compl_info()`,
+	    // regardless of the 'cpt' value.
+	    compl_col_save = compl_col;
+	    compl_length_save = compl_length;
+	    compl_pattern_save.string = compl_pattern.string;
+	    compl_pattern_save.length = compl_pattern.length;
+	    cur->cf_status = get_userdefined_compl_info(curs_col, &cur->cf_cb);
+	    cur->cf_base = vim_strnsave(compl_pattern.string, (size_t)compl_pattern.length);
+	    compl_col = compl_col_save;
+	    compl_length = compl_length_save;
+	    compl_pattern.string = compl_pattern_save.string;
+	    compl_pattern.length = compl_pattern_save.length;
+	}
+	cur->cf_refresh_always = FALSE;
+	cur = cur->cf_next;
+    }
+#endif
+}
+
+/*
  * Get the completion pattern, column and length.
  * "startcol" - start column number of the completion pattern/text
  * "cur_col" - current cursor column
@@ -5385,11 +5577,21 @@ get_spell_compl_info(int startcol UNUSED, colnr_T curs_col UNUSED)
     static int
 compl_get_info(char_u *line, int startcol, colnr_T curs_col, int *line_invalid)
 {
+    int		ret;
+
     if (ctrl_x_mode_normal()
 	    || (ctrl_x_mode & CTRL_X_WANT_IDENT
 		&& !thesaurus_func_complete(ctrl_x_mode)))
     {
-	return get_normal_compl_info(line, startcol, curs_col);
+	ret = get_normal_compl_info(line, startcol, curs_col);
+#ifdef FEAT_COMPL_FUNC
+	if (ret == OK && ctrl_x_mode_normal() && !compl_status_local())
+	{
+	    cpt_func_info_build();
+	    cpt_func_compl_get_info(curs_col, FALSE);
+	}
+#endif
+	return ret;
     }
     else if (ctrl_x_mode_line_or_eval())
     {
@@ -5406,7 +5608,8 @@ compl_get_info(char_u *line, int startcol, colnr_T curs_col, int *line_invalid)
     else if (ctrl_x_mode_function() || ctrl_x_mode_omni()
 	    || thesaurus_func_complete(ctrl_x_mode))
     {
-	if (get_userdefined_compl_info(curs_col) == FAIL)
+	if (get_userdefined_compl_info(curs_col,
+		    get_insert_callback(ctrl_x_mode)) == FAIL)
 	    return FAIL;
 	*line_invalid = TRUE;	// "line" may have become invalid
     }
