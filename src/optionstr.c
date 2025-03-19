@@ -1549,48 +1549,44 @@ did_set_commentstring(optset_T *args)
 #endif
 
 /*
- * The 'complete' option is changed.
+ * The 'complete' option is changed. Check if value for 'complete' is valid.
  */
     char *
 did_set_complete(optset_T *args)
 {
     char_u	**varp = (char_u **)args->os_varp;
-    char_u	*s;
+    char_u	*p;
+    int		escaped = 0;  // Track escaped chars
+    int		found_comma = 1;  // Start as if there's a comma before first char
+    int		is_illegal_char = 0;
 
-    // check if it is a valid value for 'complete' -- Acevedo
-    for (s = *varp; *s;)
-    {
-	while (*s == ',' || *s == ' ')
-	    s++;
-	if (!*s)
-	    break;
-	if (vim_strchr((char_u *)".wbuksid]tUf", *s) == NULL)
-	    return illegal_char(args->os_errbuf, args->os_errbuflen, *s);
-	if (*++s != NUL && *s != ',' && *s != ' ')
+    for (p = *varp; *p; p++) {
+	if (escaped)
+	    escaped = 0;  // Ignore escaped characters
+	else if (*p == '\\')
+	    escaped = 1;  // Mark next character as escaped
+	else if (*p == ',')
+	    found_comma = 1;  // Mark that we found a comma
+	else if (found_comma && *p != ' ')
 	{
-	    if (s[-1] == 'k' || s[-1] == 's' || s[-1] == 'f')
+	    found_comma = 0;  // Reset flag until next comma
+	    if (vim_strchr((char_u *)".wbuksid]tUf", *p) == NULL)
+		return illegal_char(args->os_errbuf, args->os_errbuflen, *p);
+	    if ((vim_strchr((char_u *)"ksf", *p)
+			&& (!*(p + 1) || *(p + 1) == ',' || *(p + 1) == ' '))
+		    || (!vim_strchr((char_u *)"ksf", *p)
+			&& *(p + 1) && *(p + 1) != ',' && *(p + 1) != ' '))
 	    {
-		// skip optional filename and funcname
-		while (*s && *s != ',' && *s != ' ')
-		{
-		    if (*s == '\\' && s[1] != NUL)
-			++s;
-		    ++s;
-		}
-	    }
-	    else
-	    {
-		if (args->os_errbuf != NULL)
+		if (args->os_errbuf)
 		{
 		    vim_snprintf((char *)args->os_errbuf, args->os_errbuflen,
-			    _(e_illegal_character_after_chr), *--s);
+			    _(e_illegal_character_after_chr), *p);
 		    return args->os_errbuf;
 		}
 		return "";
 	    }
 	}
     }
-
     return NULL;
 }
 

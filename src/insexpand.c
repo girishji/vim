@@ -5497,15 +5497,10 @@ cpt_func_info_build()
 		if (info == NULL)
 		    return FAIL;
 		info->cf_funcname = vim_strnsave(buf, (size_t)slen);
-		if (info->cf_funcname == NULL)
-		{
-		    vim_free(info);
-		    continue;
-		}
-		tv.vval.v_string = info->cf_funcname;
-		tv.v_type = VAR_FUNC;
-		info->cf_cb = get_callback(&tv);
-		if (info->cf_cb.cb_name == NULL)
+		msg(info->cf_funcname);
+		if (info->cf_funcname == NULL
+			|| option_set_callback_func(info->cf_funcname,
+			    &info->cf_cb) == FAIL)
 		{
 		    vim_free(info);
 		    continue;
@@ -5554,7 +5549,8 @@ cpt_func_compl_get_info(colnr_T curs_col, int restart)
 	    compl_pattern_save.string = compl_pattern.string;
 	    compl_pattern_save.length = compl_pattern.length;
 	    cur->cf_status = get_userdefined_compl_info(curs_col, &cur->cf_cb);
-	    cur->cf_base = vim_strnsave(compl_pattern.string, (size_t)compl_pattern.length);
+	    cur->cf_base = vim_strnsave(compl_pattern.string,
+		    (size_t)compl_pattern.length);
 	    compl_col = compl_col_save;
 	    compl_length = compl_length_save;
 	    compl_pattern.string = compl_pattern_save.string;
