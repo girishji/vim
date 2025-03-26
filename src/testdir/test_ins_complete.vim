@@ -1637,20 +1637,57 @@ func Test_complete_item_refresh_always()
       return #{words: res, refresh: 'always'}
     endif
   endfunc
-  new
   set completeopt=menu,longest
   set completefunc=Tcomplete
+  new
   exe "normal! iup\<C-X>\<C-U>\<BS>\<BS>\<BS>\<BS>\<BS>"
   call assert_equal('up', getline(1))
   call assert_equal(6, g:CallCount)
-  set completeopt&
-  set completefunc&
   bw!
+  let g:CallCount = 0
+  set complete=fTcomplete
+  new
+  exe "normal! iup\<C-N>\<BS>\<BS>\<BS>\<BS>\<BS>"
+  call assert_equal('up', getline(1))
+  call assert_equal(6, g:CallCount)
+  bw!
+  set completeopt&
+  set complete&
+  set completefunc&
   delfunc Tcomplete
 endfunc
 
-" XXX
-" func Test_cpt_func_refresh_always()
+" Test for 'cpt' user func that returns 'refresh': 'always'
+func XXXTest_cpt_func_refresh_always_items()
+  let g:CallCount = 0
+  let res = {1: ['foo', 'bar', 'baz'], 2: ['a', 'b'], 3: [], 4: ['foo']}
+  func! Tcomplete(findstart, base)
+    if a:findstart
+      return col('.') - 1
+    else
+      let g:CallCount += 1
+      return #{words: res[g:CallCount], refresh: 'always'}
+    endif
+  endfunc
+  set completeopt=menuone,noselect
+  set complete=fTcomplete
+  new
+  exe "normal! iabcd\<C-N>\<c-r>=complete_info([\"items\"])\<cr>"
+  call assert_equal('abcd...', getline(1))
+  call assert_equal(1, g:CallCount)
+  bw!
+  new
+  let g:CallCount = 0
+  exe "normal! iabcd\<C-N>\<BS>"
+  exe "normal! iabcd\<C-N>\<BS>\<c-r>=complete_info([\"items\"])\<cr>"
+  call assert_equal('abcd...', getline(1))
+  call assert_equal(2, g:CallCount)
+  bw!
+  set completeopt&
+  set complete&
+  set completefunc&
+  delfunc Tcomplete
+endfunc
 
 " Test for completing from a thesaurus file without read permission
 func Test_complete_unreadable_thesaurus_file()

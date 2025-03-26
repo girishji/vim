@@ -275,12 +275,12 @@ func Test_complete()
   call assert_fails('set complete=f', 'E535:')
   call assert_fails('set complete=k,s', 'E535:')
   call assert_fails('set complete=s', 'E535:')
+  call assert_fails('set complete=i,i', 'E539:')
   set complete=.
   set complete+=ffuncref('foo'\\,\ [10])
   set complete=ffuncref('foo'\\,\ [10])
   set complete&
   set complete+=ffunction('foo'\\,\ [10\\,\ 20])
-  set complete=ffunction('foo'\\,\ [10\\,\ 20])
   set complete&
 endfun
 
