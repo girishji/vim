@@ -1550,57 +1550,91 @@ did_set_commentstring(optset_T *args)
 }
 #endif
 
+#define MAX_TOKENS 100  // Maximum unique substrings to check
+
 /*
- * The 'complete' option is changed.
+ * Check if value for 'complete' is valid when 'complete' option is changed.
  */
     char *
 did_set_complete(optset_T *args)
 {
     char_u	**varp = (char_u **)args->os_varp;
-    char_u	*s;
+    char_u	*p;
+    int		count = 0;
+    char_u	buffer[LSIZE];  // Temporary storage for each substring
+    char_u	*buf_ptr;
+    int		escape;
+    char_u	*tokens[MAX_TOKENS];  // Array to store extracted substrings
+    char_u	*retval = NULL;
 
-    // check if it is a valid value for 'complete' -- Acevedo
-    for (s = *varp; *s;)
+    for (p = *varp; *p; )
     {
-	while (*s == ',' || *s == ' ')
-	    s++;
-	if (!*s)
-	    break;
-	if (vim_strchr((char_u *)".wbuksid]tU", *s) == NULL)
-	    return illegal_char(args->os_errbuf, args->os_errbuflen, *s);
-	if (*++s != NUL && *s != ',' && *s != ' ')
+	buf_ptr = buffer;
+	escape = 0;
+
+	// Extract substring while handling escaped commas
+	while (*p && (*p != ',' || escape) && buf_ptr < (buffer + LSIZE - 1))
 	{
-	    if (s[-1] == 'k' || s[-1] == 's')
+	    if (*p == '\\' && *(p + 1) == ',')
 	    {
-		// skip optional filename after 'k' and 's'
-		while (*s && *s != ',' && *s != ' ')
-		{
-		    if (*s == '\\' && s[1] != NUL)
-			++s;
-		    ++s;
-		}
+		escape = 1;  // Mark escape mode
+		p++;         // Skip '\'
 	    }
 	    else
 	    {
-		if (args->os_errbuf != NULL)
-		{
-		    vim_snprintf((char *)args->os_errbuf, args->os_errbuflen,
-			    _(e_illegal_character_after_chr), *--s);
-		    return args->os_errbuf;
-		}
-		return "";
+		escape = 0;
+		*buf_ptr++ = *p;
+	    }
+	    p++;
+	}
+	*buf_ptr = NUL;  // Null-terminate the substring
+
+	if (vim_strchr((char_u *)".wbuksid]tUf", *buffer) == NULL)
+	{
+	    retval = illegal_char(args->os_errbuf, args->os_errbuflen, *buffer);
+	    goto cleanup;
+	}
+
+	if ((vim_strchr((char_u *)"ksf", *buffer) && *(buffer + 1) == NUL)
+		|| (!vim_strchr((char_u *)"ksf", *buffer) && *(buffer + 1) != NUL))
+	{
+	    if (args->os_errbuf)
+	    {
+		vim_snprintf((char *)args->os_errbuf, args->os_errbuflen,
+			_(e_illegal_character_after_chr), *buffer);
+		retval = args->os_errbuf;
+	    }
+	    goto cleanup;
+	}
+
+	// Check for duplicates
+	for (int i = 0; i < count; i++) {
+	    if (STRCMP(tokens[i], buffer) == 0) {
+		retval = illegal_char(args->os_errbuf, args->os_errbuflen, *buffer);
+		goto cleanup;
 	    }
 	}
+
+	// Store new substring
+	if (count < MAX_TOKENS) {
+	    tokens[count++] = vim_strsave(buffer);  // Store a copy
+	}
+
+	// Skip comma and spaces
+	while (*p == ',' || *p == ' ') p++;
     }
 
-    return NULL;
+cleanup:
+    while (count)
+	vim_free(tokens[--count]);
+    return retval;
 }
 
     int
 expand_set_complete(optexpand_T *args, int *numMatches, char_u ***matches)
 {
     static char *(p_cpt_values[]) = {
-	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U",
+	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U", "f",
 	NULL};
     return expand_set_opt_string(
 	    args,
