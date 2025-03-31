@@ -643,8 +643,6 @@ edit(
 
 	    // When no match was selected or it was edited.
 	    if (!ins_compl_used_match())
-	    // xxx
-	    // if (ins_compl_used_match())
 	    {
 		// CTRL-L: Add one character from the current match to
 		// "compl_leader".  Except when at the original match and

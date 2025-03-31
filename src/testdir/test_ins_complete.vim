@@ -1681,7 +1681,7 @@ func Test_complete_item_refresh_always()
   delfunc Tcomplete
 endfunc
 
-" Test for 'cpt' user func that returns 'refresh': 'always'
+" Test for 'cpt' user func that fails (return -2/-3) when refresh:always
 func Test_cpt_func_refresh_always_fail()
   func! CompleteFail(retval, findstart, base)
     if a:findstart
@@ -1780,7 +1780,7 @@ func Test_cpt_func_refresh_always_fail()
   delfunc CompleteFailIntermittent
 endfunc
 
-" Select items before deleting
+" Select items before they are deleted when refresh:always
 func Test_cpt_select_item_refresh_always()
 
   func CompleteMenuWords()
@@ -1797,13 +1797,9 @@ func Test_cpt_select_item_refresh_always()
     if g:CallCount == 2
         return #{words: a:compl, refresh: 'always'}
     endif
-    let res = [[], ['fo', 'foobar'], [], ['foo1', 'foo2'], ['foo3']]
+    let res = [[], ['fo', 'foobar'], [], ['foo1', 'foo2']]
     return #{words: res[g:CallCount], refresh: 'always'}
   endfunc
-
-  let g:CallCount = 0
-  " set complete=.,ffunction('CompleteItemsSelect'\\,\ [['foonext']])
-  " set complete=.,ffunction('CompleteItemsSelect'\\,\ [['fo'\\,\ 'foonext']])
 
   new
   set complete=.,ffunction('CompleteItemsSelect'\\,\ [[]])
@@ -1815,9 +1811,16 @@ func Test_cpt_select_item_refresh_always()
   %d
   call setline(1, "foobarbar")
   let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<c-p>\<c-p>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('fo{''selected'': 0, ''items'': [''fo'', ''foobar'', ''foobarbar'']}', getline(2))
+  call assert_equal(1, g:CallCount)
+  %d
+  " xxx
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
   exe "normal! Gof\<c-n>\<c-n>o\<c-r>=CompleteMenuWords()\<cr>"
-  call assert_equal('foo{''selected'': -1, ''items'': [foo]}', getline(2))
-  call assert_equal(2, g:CallCount)
+  call assert_equal('foo{''selected'': -1, ''items'': []}' , getline(2))
+  call assert_equal(1, g:CallCount)
   %d
   call setline(1, "foobarbar")
   let g:CallCount = 0
@@ -1825,57 +1828,183 @@ func Test_cpt_select_item_refresh_always()
   call assert_equal('f{''selected'': -1, ''items'': [''foobarbar'']}', getline(2))
   call assert_equal(2, g:CallCount)
   %d
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<c-p>\<c-p>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('f{''selected'': -1, ''items'': [''foobarbar'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+
+  %d
+  set complete=.,ffunction('CompleteItemsSelect'\\,\ [['foonext']])
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-n>\<c-n>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('f{''selected'': -1, ''items'': [''foobarbar'', ''foonext'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+  %d
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<c-p>\<c-p>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('f{''selected'': -1, ''items'': [''foonext'', ''foobarbar'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+
+  %d
+  call setline(1, "foob")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-n>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('foo{''selected'': 0, ''items'': [''foob'', ''foonext'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+  %d
+  call setline(1, "foob")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-n>\<bs>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('fo{''selected'': 0, ''items'': [''foob'', ''foo1'', ''foo2'']}', getline(2))
+  call assert_equal(3, g:CallCount)
+
+  %d
+  call setline(1, "foob")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('foo{''selected'': 1, ''items'': [''foonext'', ''foob'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+  %d
+  call setline(1, "foob")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<bs>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('fo{''selected'': 2, ''items'': [''foo1'', ''foo2'', ''foob'']}', getline(2))
+  call assert_equal(3, g:CallCount)
+
+  %d
+  set complete=.,ffunction('CompleteItemsSelect'\\,\ [['fo'\\,\ 'foonext']])
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-n>\<c-n>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('f{''selected'': -1, ''items'': [''foobarbar'', ''fo'', ''foonext'']}', getline(2))
+  call assert_equal(2, g:CallCount)
+  %d
+  call setline(1, "foobarbar")
+  let g:CallCount = 0
+  exe "normal! Gof\<c-p>\<c-p>\<c-p>\<bs>\<c-r>=CompleteMenuWords()\<cr>"
+  call assert_equal('f{''selected'': -1, ''items'': [''fo'', ''foonext'', ''foobarbar'']}', getline(2))
+  call assert_equal(2, g:CallCount)
   bw!
 
-
-
-  set complete& completeopt&
+  set complete&
   delfunc CompleteMenuWords
   delfunc CompleteItemsSelect
 endfunc
 
+" Test two functions together, each returning refresh:always
 func Test_cpt_multi_func_refresh_always()
 
-  func CompleteMenuWords()
-    let info = complete_info(["items"])
-    call map(info.items, {_, v -> v.word})
+  func CompleteMenuMatches()
+    let info = complete_info(["matches", "selected"])
+    call map(info.matches, {_, v -> v.word})
     return info
   endfunc
 
-  set complete=
-  exe "normal! if\<C-N>\<c-r>=CompleteMenuWords()\<cr>"
-  call assert_equal("f\x0e" . '{''items'': []}', getline(1))  " \x0e is <c-n>
+  func! CompleteItems1(findstart, base)
+    if a:findstart
+      return col('.') - 1
+    endif
+    let g:CallCount1 += 1
+    let res = [[], [], ['foo1', 'foobar1'], [], ['foo11', 'foo12'], [], ['foo13', 'foo14']]
+    return #{words: res[g:CallCount1], refresh: 'always'}
+  endfunc
 
-  " Select items before being removed
+  func! CompleteItems2(findstart, base)
+    if a:findstart
+      return col('.') - 1
+    endif
+    let g:CallCount2 += 1
+    let res = [[], [], [], ['foo2', 'foobar2'], ['foo21', 'foo22'], ['foo23'], []]
+    return #{words: res[g:CallCount2], refresh: 'always'}
+  endfunc
+
+  set complete=
+  exe "normal! if\<C-N>\<c-r>=CompleteMenuMatches()\<cr>"
+  " \x0e is <c-n>
+  call assert_equal("f\x0e" . '{''matches'': [], ''selected'': -1}', getline(1))
+
+  set completeopt=menuone,noselect
+  set complete=fCompleteItems1,fCompleteItems2
+
+  new
+  let g:CallCount1 = 0
+  let g:CallCount2 = 0
+  exe "normal! if\<c-n>o\<c-n>o\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('foo{''matches'': [''foo2'', ''foobar2''], ''selected'': -1}', getline(1))
+  call assert_equal(3, g:CallCount1)
+  call assert_equal(3, g:CallCount2)
+  %d
+  let g:CallCount1 = 0
+  let g:CallCount2 = 0
+  exe "normal! if\<c-p>o\<c-p>o\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('foo{''matches'': [''foo2'', ''foobar2''], ''selected'': -1}', getline(1))
+  call assert_equal(3, g:CallCount1)
+  call assert_equal(3, g:CallCount2)
+  %d
+  let g:CallCount1 = 0
+  let g:CallCount2 = 0
+  exe "normal! if\<c-p>\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('f{''matches'': [], ''selected'': -1}', getline(1))
+  call assert_equal(1, g:CallCount1)
+  call assert_equal(1, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-n>\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('f{''matches'': [''foo1'', ''foobar1''], ''selected'': -1}', getline(1))
+  call assert_equal(2, g:CallCount2)
+  call assert_equal(2, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-n>o\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('fo{''matches'': [''foo2'', ''foobar2''], ''selected'': -1}', getline(1))
+  call assert_equal(3, g:CallCount2)
+  call assert_equal(3, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-p>o\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('fo{''matches'': [''foo2'', ''foobar2''], ''selected'': -1}', getline(1))
+  call assert_equal(3, g:CallCount2)
+  call assert_equal(3, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-n>oo\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('foo{''matches'': [''foo11'', ''foo12'', ''foo21'', ''foo22''], ''selected'': -1}', getline(1))
+  call assert_equal(4, g:CallCount2)
+  call assert_equal(4, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-n>oo\<bs>\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('fo{''matches'': [''foo23''], ''selected'': -1}', getline(1))
+  call assert_equal(5, g:CallCount2)
+  call assert_equal(5, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-p>oo\<bs>\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('fo{''matches'': [''foo23''], ''selected'': -1}', getline(1))
+  call assert_equal(5, g:CallCount2)
+  call assert_equal(5, g:CallCount2)
+  %d
+  let g:CallCount1 = 1
+  let g:CallCount2 = 1
+  exe "normal! if\<c-n>oo\<bs>o\<c-r>=CompleteMenuMatches()\<cr>"
+  call assert_equal('foo{''matches'': [''foo13'', ''foo14''], ''selected'': -1}', getline(1))
+  call assert_equal(6, g:CallCount2)
+  call assert_equal(6, g:CallCount2)
+  bw!
 
   set complete& completeopt&
-  delfunc CompleteMenuWords
-
-  " let g:CallCount = 0
-  " let res = {1: ['foo', 'bar', 'baz'], 2: ['a', 'b'], 3: [], 4: ['foo']}
-  " func! Tcomplete(findstart, base)
-  "   if a:findstart
-  "     return col('.') - 1
-  "   else
-  "     let g:CallCount += 1
-  "     return #{words: res[g:CallCount], refresh: 'always'}
-  "   endif
-  " endfunc
-  " set completeopt=menuone,noselect
-  " set complete=fTcomplete
-  " new
-  " exe "normal! iabcd\<C-N>\<c-r>=complete_info([\"items\"])\<cr>"
-  " call assert_equal('abcd...', getline(1))
-  " call assert_equal(1, g:CallCount)
-  " bw!
-  " new
-  " let g:CallCount = 0
-  " exe "normal! iabcd\<C-N>\<BS>"
-  " exe "normal! iabcd\<C-N>\<BS>\<c-r>=complete_info([\"items\"])\<cr>"
-  " call assert_equal('abcd...', getline(1))
-  " call assert_equal(2, g:CallCount)
-  " bw!
-  " set completeopt&
+  delfunc CompleteMenuMatches
+  delfunc CompleteItems1
+  delfunc CompleteItems2
 endfunc
 
 " Test for completing from a thesaurus file without read permission

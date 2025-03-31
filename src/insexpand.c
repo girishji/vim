@@ -2054,9 +2054,7 @@ ins_compl_win_active(win_T *wp UNUSED)
     int
 ins_compl_used_match(void)
 {
-    if (get_cot_flags() & COT_FUZZY)
-	return compl_used_match;
-    return FALSE;
+    return compl_used_match;
 }
 
 /*
@@ -4678,6 +4676,7 @@ ins_compl_get_exp(pos_T *ini)
 	    compl_started = FALSE;
 	}
     }
+    cpt_value_idx = -1;
     compl_started = TRUE;
 
     if ((ctrl_x_mode_normal() || ctrl_x_mode_line_or_eval())
@@ -6475,33 +6474,33 @@ ins_compl_make_linear(void)
 /*
  *
  */
-    static void
-get_sublist(compl_T **sublist_start, compl_T **sublist_end)
-{
-    compl_T *start = NULL;
-    compl_T *end = NULL;
-    compl_T *current;
-    int	    compl_shown_removed = FALSE;
+    // static void
+// get_sublist(compl_T **sublist_start, compl_T **sublist_end)
+// {
+    // compl_T *start = NULL;
+    // compl_T *end = NULL;
+    // compl_T *current;
+    // int	    compl_shown_removed = FALSE;
 
-    for (current = compl_first_match; current != NULL;
-	    current = current->cp_next)
-    {
-	if (current->cp_cpt_value_idx == cpt_value_idx)
-	{
-	    if (!start)
-		start = current;
-	    end = current;
-	    if (compl_shown_match == current)
-		compl_shown_removed = TRUE;
-	}
-	else if (start)
-	    break;
-    }
-    if (compl_shown_removed)
-	compl_shown_match = compl_first_match;
-    *sublist_start = start;
-    *sublist_end = end;
-}
+    // for (current = compl_first_match; current != NULL;
+	    // current = current->cp_next)
+    // {
+	// if (current->cp_cpt_value_idx == cpt_value_idx)
+	// {
+	    // if (!start)
+		// start = current;
+	    // end = current;
+	    // if (compl_shown_match == current)
+		// compl_shown_removed = TRUE;
+	// }
+	// else if (start)
+	    // break;
+    // }
+    // if (compl_shown_removed)
+	// compl_shown_match = compl_first_match;
+    // *sublist_start = start;
+    // *sublist_end = end;
+// }
 
 /*
  *
@@ -6514,6 +6513,7 @@ remove_old_matches()
     bool compl_shown_removed = false;
     bool forward = compl_dir_forward();
 
+    // Identify the sublist of old matches that needs removal
     for (current = compl_first_match; current != NULL; current = current->cp_next)
     {
 	if (current->cp_cpt_value_idx < cpt_value_idx && (forward || (!forward && !insert_at)))
@@ -6524,7 +6524,7 @@ remove_old_matches()
 	    if (!sublist_start)
 		sublist_start = current;
 	    sublist_end = current;
-	    if (compl_shown_match == current)
+	    if (!compl_shown_removed && compl_shown_match == current)
 		compl_shown_removed = true;
 	}
 
@@ -6532,8 +6532,18 @@ remove_old_matches()
 	    break;
     }
 
+    // Re-assign compl_shown_match if necessary
     if (compl_shown_removed)
-	compl_shown_match = compl_first_match;
+    {
+	if (forward)
+	    compl_shown_match = compl_first_match;
+	else
+	{  // Last node will have the prefix that is being completed
+	    for (current = compl_first_match; current->cp_next != NULL; current = current->cp_next)
+		;
+	    compl_shown_match = current;
+	}
+    }
 
     if (!sublist_start) // No nodes to remove
 	return insert_at;
@@ -6683,6 +6693,7 @@ cpt_compl_refresh(void)
 
 	copy_option_part(&p, IObuff, IOSIZE, ","); // Advance p
     }
+    cpt_value_idx = -1;
 
     // for (p = p_cpt; *p; )
     // {
@@ -6716,6 +6727,6 @@ cpt_compl_refresh(void)
     compl_matches = ins_compl_make_cyclic();
 
     // xxx
-    compl_curr_match = compl_first_match;
+    // compl_curr_match = compl_first_match;
 }
 
