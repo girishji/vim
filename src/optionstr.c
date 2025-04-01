@@ -1565,7 +1565,7 @@ did_set_complete(optset_T *args)
     char_u	*buf_ptr;
     int		escape;
     char_u	*tokens[MAX_TOKENS];  // Array to store extracted substrings
-    char_u	*retval = NULL;
+    char	*retval = NULL;
 
     for (p = *varp; *p; )
     {
