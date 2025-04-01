@@ -657,7 +657,6 @@ edit(
 
 		// A non-white character that fits in with the current
 		// completion: Add to "compl_leader".
-		// XXX
 		if (ins_compl_accept_char(c))
 		{
 #if defined(FEAT_EVAL)
@@ -696,7 +695,6 @@ edit(
 	// Prepare for or stop CTRL-X mode.  This doesn't do completion, but
 	// it does fix up the text when finishing completion.
 	ins_compl_init_get_longest();
-	// XXX
 	if (ins_compl_prep(c))
 	    continue;
 
