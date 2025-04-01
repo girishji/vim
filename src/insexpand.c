@@ -105,7 +105,7 @@ struct compl_S
 					// cp_flags has CP_FREE_FNAME
     int		cp_flags;		// CP_ values
     int		cp_number;		// sequence number
-    int		cp_score;		// fuzzy match score
+    int		cp_score;		// fuzzy match score or proximity score
     int		cp_in_match_array;	// collected by compl_match_array
     int		cp_user_abbr_hlattr;	// highlight attribute for abbr
     int		cp_user_kind_hlattr;	// highlight attribute for kind
@@ -1347,6 +1347,52 @@ ins_compl_fuzzy_cmp(const void *a, const void *b)
 }
 
 /*
+ * qsort compare func when 'completeopt' contains "nearest".
+ */
+    static int
+ins_compl_nearest_cmp(const void *a, const void *b)
+{
+    const pumitem_T *pa = a, *pb = b;
+    return (pa->pum_score > pb->pum_score) - (pa->pum_score < pb->pum_score);
+}
+
+/*
+ * Finds a subarray of completion matches containing volid distance score.
+ * Stores the index of the first matching entry in "start" and the total count
+ * in "count". Returns OK if matches are found, otherwise FAIL.
+ */
+    static int
+nearest_matches_subarray(int *start, int *count)
+{
+    int i, first_match_idx = -1, match_count = 0;
+
+    for (i = 0; i < compl_match_arraysize; i++)
+    {
+	if (compl_match_array[i].pum_score > 0)
+	{
+	    if (first_match_idx == -1)
+		first_match_idx = i;
+	    match_count++;
+	}
+    }
+
+    *start = first_match_idx;
+    *count = match_count;
+    return first_match_idx < 0 ? FAIL : OK;
+}
+
+/*
+ * Returns TRUE if matches should be sorted based on proximity to the cursor.
+ */
+    static int
+is_nearest_match_active()
+{
+    unsigned int flags = get_cot_flags();
+
+    return (flags & COT_NEAREST) && !(flags & (COT_FUZZY | COT_LONGEST));
+}
+
+/*
  * Build a popup menu to show the completion matches.
  * Returns the popup menu entry that should be selected. Returns -1 if nothing
  * should be selected.
@@ -1365,6 +1411,8 @@ ins_compl_build_pum(void)
     int		compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
     int		fuzzy_filter = (cur_cot_flags & COT_FUZZY) != 0;
     int		fuzzy_sort = fuzzy_filter && !(cur_cot_flags & COT_NOSORT);
+    int		nearest_first_match_idx;
+    int		nearest_match_count;
 
     compl_T	*match_head = NULL;
     compl_T	*match_tail = NULL;
@@ -1505,6 +1553,14 @@ ins_compl_build_pum(void)
 	qsort(compl_match_array, (size_t)compl_match_arraysize,
 				       sizeof(pumitem_T), ins_compl_fuzzy_cmp);
 	shown_match_ok = TRUE;
+    }
+    if (is_nearest_match_active())
+    {
+	if (nearest_matches_subarray(&nearest_first_match_idx,
+		    &nearest_match_count) == OK)
+	    qsort(compl_match_array + nearest_first_match_idx,
+		    (size_t)nearest_match_count, sizeof(pumitem_T),
+		    ins_compl_nearest_cmp);
     }
 
     if (!shown_match_ok)    // no displayed match at all
@@ -4327,6 +4383,34 @@ ins_compl_get_next_word_or_line(
 }
 
 /*
+ * Recalculate proximity score (based on distance from cursor) of a given match
+ * when 'nearest' is set in 'completeopt'.
+ */
+    static void
+update_match_proximity_score(char_u *str, int len, int score)
+{
+    compl_T *match;
+
+    if (compl_first_match != NULL && str != NULL)
+    {
+	match = compl_first_match;
+	do
+	{
+	    if (!match_at_original_text(match)
+		    && STRNCMP(match->cp_str.string, str, len) == 0
+		    && ((int)match->cp_str.length <= len
+			|| match->cp_str.string[len] == NUL))
+	    {
+		if (score < match->cp_score)
+		    match->cp_score = score;
+		return;
+	    }
+	    match = match->cp_next;
+	} while (match != NULL && !is_first_match(match));
+    }
+}
+
+/*
  * Get the next set of words matching "compl_pattern" for default completion(s)
  * (normal ^P/^N and ^X^L).
  * Search for "compl_pattern" in the buffer "st->ins_buf" starting from the
@@ -4347,6 +4431,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		in_collect = (cfc_has_mode() && compl_length > 0);
     char_u	*leader = ins_compl_leader();
     int		score = 0;
+    int		in_curbuf = st->ins_buf == curbuf;
 
     // If 'infercase' is set, don't use 'smartcase' here
     save_p_scs = p_scs;
@@ -4358,7 +4443,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     //	buffer is a good idea, on the other hand, we always set
     //	wrapscan for curbuf to avoid missing matches -- Acevedo,Webb
     save_p_ws = p_ws;
-    if (st->ins_buf != curbuf)
+    if (!in_curbuf)
 	p_ws = FALSE;
     else if (*st->e_cpt == '.')
 	p_ws = TRUE;
@@ -4423,7 +4508,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 	    break;
 
 	// when ADDING, the text before the cursor matches, skip it
-	if (compl_status_adding() && st->ins_buf == curbuf
+	if (compl_status_adding() && in_curbuf
 		&& start_pos->lnum == st->cur_match_pos->lnum
 		&& start_pos->col  == st->cur_match_pos->col)
 	    continue;
@@ -4434,14 +4519,25 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 	if (ptr == NULL || (ins_compl_has_preinsert() && STRCMP(ptr, compl_pattern.string) == 0))
 	    continue;
 
+	if (is_nearest_match_active() && in_curbuf)
+	{
+	    score = st->cur_match_pos->lnum - curwin->w_cursor.lnum;
+	    if (score < 0)
+		score = -score;
+	    score++;
+	}
 	if (ins_compl_add_infercase(ptr, len, p_ic,
-			st->ins_buf == curbuf ? NULL : st->ins_buf->b_sfname,
+			in_curbuf ? NULL : st->ins_buf->b_sfname,
 			0, cont_s_ipos, score) != NOTDONE)
 	{
 	    if (in_collect && score == compl_first_match->cp_next->cp_score)
 		compl_num_bests++;
 	    found_new_match = OK;
 	    break;
+	}
+	else if (is_nearest_match_active() && in_curbuf)
+	{  // Update distance of a match that is already in the list
+	    update_match_proximity_score(ptr, len, score);
 	}
     }
     p_scs = save_p_scs;
