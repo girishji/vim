@@ -3995,4 +3995,15 @@ func Test_complete_append_selected_match_default()
   delfunc PrintMenuWords
 endfunc
 
+func Test_nearest_match_order()
+  func PrintMenuWords()
+    let info = complete_info(["selected", "matches"])
+    call map(info.matches, {_, v -> v.word})
+    return info
+  endfunc
+
+  set completeopt&
+  delfunc PrintMenuWords
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab nofoldenable
