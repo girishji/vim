@@ -82,6 +82,7 @@ sign.c		| signs
 spell.c		| spell checking core
 spellfile.c	| spell file handling
 spellsuggest.c	| spell correction suggestions
+srchexpand.c	| search mode completion
 strings.c	| string manipulation functions
 syntax.c	| syntax and other highlighting
 tag.c		| tags

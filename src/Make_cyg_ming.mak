@@ -856,6 +856,7 @@ OBJ = \
 	$(OUTDIR)/spell.o \
 	$(OUTDIR)/spellfile.o \
 	$(OUTDIR)/spellsuggest.o \
+	$(OUTDIR)/srchexpand.o \
 	$(OUTDIR)/strings.o \
 	$(OUTDIR)/syntax.o \
 	$(OUTDIR)/tag.o \

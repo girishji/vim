@@ -777,6 +777,7 @@ OBJ = \
 	$(OUTDIR)\spell.obj \
 	$(OUTDIR)\spellfile.obj \
 	$(OUTDIR)\spellsuggest.obj \
+	$(OUTDIR)\srchexpand.obj \
 	$(OUTDIR)\strings.obj \
 	$(OUTDIR)\syntax.obj \
 	$(OUTDIR)\tag.obj \
@@ -1774,6 +1775,8 @@ $(OUTDIR)/spellfile.obj:	$(OUTDIR) spellfile.c  $(INCL)
 
 $(OUTDIR)/spellsuggest.obj:	$(OUTDIR) spellsuggest.c  $(INCL)
 
+$(OUTDIR)/srchexpand.obj:	$(OUTDIR) srchexpand.c  $(INCL)
+
 $(OUTDIR)/strings.obj:	$(OUTDIR) strings.c  $(INCL)
 
 $(OUTDIR)/syntax.obj:	$(OUTDIR) syntax.c  $(INCL)
@@ -1999,6 +2002,7 @@ proto.h: \
 	proto/spell.pro \
 	proto/spellfile.pro \
 	proto/spellsuggest.pro \
+	proto/srchexpand.pro \
 	proto/strings.pro \
 	proto/syntax.pro \
 	proto/tag.pro \

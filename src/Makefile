@@ -1574,6 +1574,7 @@ BASIC_SRC = \
 	spell.c \
 	spellfile.c \
 	spellsuggest.c \
+	srchexpand.c \
 	strings.c \
 	syntax.c \
 	tag.c \
@@ -1735,6 +1736,7 @@ OBJ_COMMON = \
 	objects/spell.o \
 	objects/spellfile.o \
 	objects/spellsuggest.o \
+	objects/srchexpand.o \
 	objects/strings.o \
 	objects/syntax.o \
 	objects/tag.o \
@@ -1928,6 +1930,7 @@ PRO_AUTO = \
 	spell.pro \
 	spellfile.pro \
 	spellsuggest.pro \
+	srchexpand.pro \
 	strings.pro \
 	syntax.pro \
 	tag.pro \
@@ -3541,6 +3544,9 @@ objects/spellfile.o: spellfile.c
 objects/spellsuggest.o: spellsuggest.c
 	$(CCC) -o $@ spellsuggest.c
 
+objects/srchexpand.o: srchexpand.c
+	$(CCC) -o $@ srchexpand.c
+
 objects/strings.o: strings.c
 	$(CCC) -o $@ strings.c
 
@@ -4200,6 +4206,11 @@ objects/spellfile.o: spellfile.c vim.h protodef.h auto/config.h feature.h \
  libvterm/include/vterm.h libvterm/include/vterm_keycodes.h alloc.h \
  ex_cmds.h spell.h proto.h globals.h errors.h
 objects/spellsuggest.o: spellsuggest.c vim.h protodef.h auto/config.h feature.h \
+ os_unix.h auto/osdef.h ascii.h keymap.h termdefs.h macros.h option.h \
+ beval.h proto/gui_beval.pro structs.h regexp.h gui.h \
+ libvterm/include/vterm.h libvterm/include/vterm_keycodes.h alloc.h \
+ ex_cmds.h spell.h proto.h globals.h errors.h
+objects/srchexpand.o: srchexpand.c vim.h protodef.h auto/config.h feature.h \
  os_unix.h auto/osdef.h ascii.h keymap.h termdefs.h macros.h option.h \
  beval.h proto/gui_beval.pro structs.h regexp.h gui.h \
  libvterm/include/vterm.h libvterm/include/vterm_keycodes.h alloc.h \

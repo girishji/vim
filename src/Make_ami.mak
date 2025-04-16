@@ -159,6 +159,7 @@ SRC += \
 	spell.c \
 	spellfile.c \
 	spellsuggest.c \
+	srchexpand.c \
 	strings.c \
 	syntax.c \
 	tag.c \

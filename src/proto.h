@@ -114,6 +114,7 @@ extern int _stricoll(char *a, char *b);
 # include "match.pro"
 # include "memfile.pro"
 # include "memline.pro"
+# include "srchexpand.pro"
 # ifdef FEAT_MENU
 #  include "menu.pro"
 # endif
