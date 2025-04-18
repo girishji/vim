@@ -8,7 +8,7 @@
  */
 
 /*
- * cmdexpand.c: functions for command-line completion
+ * srchexpand.c: functions for search mode completion
  */
 
 #include "vim.h"

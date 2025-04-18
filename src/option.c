@@ -2277,7 +2277,7 @@ do_set_option_numeric(
 	else
 	    value = *(long *)get_varp_scope(&(options[opt_idx]), OPT_GLOBAL);
     }
-    else if (((long *)varp == &p_wc || (long *)varp == &p_wcm)
+    else if (((long *)varp == &p_wc || (long *)varp == &p_wcm || (long *)varp == &p_sch)
 	    && (*arg == '<'
 		|| *arg == '^'
 		|| (*arg != NUL
@@ -8396,14 +8396,16 @@ option_value2string(
 }
 
 /*
- * Return TRUE if "varp" points to 'wildchar' or 'wildcharm' and it can be
- * printed as a keyname.
- * "*wcp" is set to the value of the option if it's 'wildchar' or 'wildcharm'.
+ * Return TRUE if "varp" points to 'wildchar' or 'wildcharm' or 'searchchar'
+ * and it can be printed as a keyname.
+ * "*wcp" is set to the value of the option if it's 'wildchar' or 'wildcharm'
+ * or 'searchchar'.
  */
     static int
 wc_use_keyname(char_u *varp, long *wcp)
 {
-    if (((long *)varp == &p_wc) || ((long *)varp == &p_wcm))
+    if (((long *)varp == &p_wc) || ((long *)varp == &p_wcm)
+	    || ((long *)varp == &p_sch))
     {
 	*wcp = *(long *)varp;
 	if (IS_SPECIAL(*wcp) || find_special_key_in_table((int)*wcp) >= 0)

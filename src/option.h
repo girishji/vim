@@ -887,6 +887,7 @@ EXTERN int	p_scf;		// 'scrollfocus'
 #endif
 EXTERN long	p_so;		// 'scrolloff'
 EXTERN char_u	*p_sbo;		// 'scrollopt'
+EXTERN long	p_sch;		// 'searchchar'
 EXTERN char_u	*p_sections;	// 'sections'
 EXTERN int	p_secure;	// 'secure'
 EXTERN char_u	*p_sel;		// 'selection'
