@@ -2220,8 +2220,8 @@ static struct vimoption options[] =
 			    (char_u *)&p_sbo, PV_NONE, did_set_scrollopt, expand_set_scrollopt,
 			    {(char_u *)"ver,jump", (char_u *)0L}
 			    SCTX_INIT},
-    {"searchchar",  "sch",  P_NUM|P_VI_DEF,
-			    (char_u *)&p_sch, PV_NONE, did_set_wildchar, NULL,
+    {"searchcharm",  "scm", P_NUM|P_VI_DEF,
+			    (char_u *)&p_scm, PV_NONE, did_set_wildchar, NULL,
 			    {(char_u *)0L, (char_u *)0L} SCTX_INIT},
     {"sections",    "sect", P_STRING|P_VI_DEF,
 			    (char_u *)&p_sections, PV_NONE, NULL, NULL,

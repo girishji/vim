@@ -1621,6 +1621,7 @@ getcmdline_int(
     int		cmdline_type;
     int		wild_type = 0;
     int		event_cmdlineleavepre_triggered = FALSE;
+    int		in_search = (firstc == '/' || firstc == '?');
 
     // one recursion level deeper
     ++depth;
@@ -1902,12 +1903,16 @@ getcmdline_int(
 	if (p_wmnu)
 	    c = wildmenu_translate_key(&ccline, c, &xpc, did_wild_list);
 
-	int key_is_wc = (c == p_wc && KeyTyped) || c == p_wcm;
-	if ((cmdline_pum_active() || did_wild_list) && !key_is_wc)
+	int key_is_trigger = (!in_search && ((c == p_wc && KeyTyped) || c == p_wcm))
+		|| (in_search && c == p_scm);
+	// int key_is_wc = (c == p_wc && KeyTyped) || c == p_wcm;
+	// if ((cmdline_pum_active() || did_wild_list) && !key_is_wc)
+	if ((cmdline_pum_active() || did_wild_list) && !key_is_trigger)
 	{
 	    // Ctrl-Y: Accept the current selection and close the popup menu.
 	    // Ctrl-E: cancel the cmdline popup menu and return the original
 	    // text.
+	    // XXX: test
 	    if (c == Ctrl_E || c == Ctrl_Y)
 	    {
 		wild_type = (c == Ctrl_E) ? WILD_CANCEL : WILD_APPLY;
@@ -1933,7 +1938,7 @@ getcmdline_int(
 	// 'wildcharm' or Ctrl-N or Ctrl-P or Ctrl-A or Ctrl-L).
 	// If the popup menu is displayed, then PageDown and PageUp keys are
 	// also used to navigate the menu.
-	end_wildmenu = (!key_is_wc
+	end_wildmenu = (!key_is_trigger
 		&& c != Ctrl_N && c != Ctrl_P && c != Ctrl_A && c != Ctrl_L);
 	end_wildmenu = end_wildmenu && (!cmdline_pum_active() ||
 			    (c != K_PAGEDOWN && c != K_PAGEUP
@@ -1953,6 +1958,7 @@ getcmdline_int(
 	    wildmenu_cleanup(&ccline);
 	}
 
+	// xxx
 	if (p_wmnu)
 	    c = wildmenu_process_key(&ccline, c, &xpc);
 
@@ -2016,8 +2022,9 @@ getcmdline_int(
 	    }
 	}
 
-	// Completion for 'wildchar' or 'wildcharm' key.
-	if ((c == p_wc && !gotesc && KeyTyped) || c == p_wcm)
+	// Completion for 'wildchar', 'wildcharm', or 'searchcharm' key.
+	if ((!in_search && ((c == p_wc && !gotesc && KeyTyped) || c == p_wcm))
+		|| (in_search && c == p_scm))
 	{
 	    res = cmdline_wildchar_complete(c, firstc != '@', &did_wild_list,
 		    &wim_index, &xpc, &gotesc);
@@ -2028,6 +2035,7 @@ getcmdline_int(
 	gotesc = FALSE;
 
 	// <S-Tab> goes to last match, in a clumsy way
+	// xxx
 	if (c == K_S_TAB && KeyTyped)
 	{
 	    if (nextwild(&xpc, WILD_EXPAND_KEEP, 0, firstc != '@') == OK)
@@ -2327,6 +2335,7 @@ getcmdline_int(
 		    // menu (if present)
 		    cmdline_pum_cleanup(&ccline);
 
+		// xxx
 		if (nextwild(&xpc, WILD_ALL, 0, firstc != '@') == FAIL)
 		    break;
 		xpc.xp_context = EXPAND_NOTHING;
@@ -2339,6 +2348,7 @@ getcmdline_int(
 		    goto cmdline_not_changed;
 #endif
 
+		// xxx
 		// completion: longest common part
 		if (nextwild(&xpc, WILD_LONGEST, 0, firstc != '@') == FAIL)
 		    break;
@@ -2346,6 +2356,7 @@ getcmdline_int(
 
 	case Ctrl_N:	    // next match
 	case Ctrl_P:	    // previous match
+		// xxx
 		if (xpc.xp_numfiles > 0)
 		{
 		    wild_type = (c == Ctrl_P) ? WILD_PREV : WILD_NEXT;
@@ -2368,6 +2379,7 @@ getcmdline_int(
 		{
 		    // If the popup menu is displayed, then PageUp and PageDown
 		    // are used to scroll the menu.
+		    // xxx
 		    wild_type = WILD_PAGEUP;
 		    if (c == K_PAGEDOWN || c == K_KPAGEDOWN)
 			wild_type = WILD_PAGEDOWN;

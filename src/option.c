@@ -2277,7 +2277,8 @@ do_set_option_numeric(
 	else
 	    value = *(long *)get_varp_scope(&(options[opt_idx]), OPT_GLOBAL);
     }
-    else if (((long *)varp == &p_wc || (long *)varp == &p_wcm || (long *)varp == &p_sch)
+    else if (((long *)varp == &p_wc || (long *)varp == &p_wcm
+		|| (long *)varp == &p_scm)
 	    && (*arg == '<'
 		|| *arg == '^'
 		|| (*arg != NUL
@@ -4584,7 +4585,7 @@ did_set_weirdinvert(optset_T *args)
 }
 
 /*
- * Process the new 'wildchar' / 'wildcharm' option value.
+ * Process the new 'wildchar' / 'wildcharm' / 'searchcharm' option value.
  */
     char *
 did_set_wildchar(optset_T *args)
@@ -8412,7 +8413,7 @@ option_value2string(
 wc_use_keyname(char_u *varp, long *wcp)
 {
     if (((long *)varp == &p_wc) || ((long *)varp == &p_wcm)
-	    || ((long *)varp == &p_sch))
+	    || ((long *)varp == &p_scm))
     {
 	*wcp = *(long *)varp;
 	if (IS_SPECIAL(*wcp) || find_special_key_in_table((int)*wcp) >= 0)
