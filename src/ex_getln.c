@@ -1621,6 +1621,7 @@ getcmdline_int(
     int		cmdline_type;
     int		wild_type = 0;
     int		event_cmdlineleavepre_triggered = FALSE;
+    int		in_search = (firstc == '/' || firstc == '?');
 
     // one recursion level deeper
     ++depth;
@@ -1892,12 +1893,14 @@ getcmdline_int(
 	    lookforlen = 0;
 	}
 
-	/*
-	 * When there are matching completions to select <S-Tab> works like
-	 * CTRL-P (unless 'wc' is <S-Tab>).
-	 */
+	// When there are matching completions to select <S-Tab> works like
+	// CTRL-P (unless 'wc' is <S-Tab>).
 	if (c != p_wc && c == K_S_TAB && xpc.xp_numfiles > 0)
 	    c = Ctrl_P;
+	// When search ('/' or '?') command is being completed <Tab> works like
+	// CTRL-N.
+	if (c == p_wc && xpc.xp_numfiles > 0 && in_search)
+	    c = Ctrl_N;
 
 	if (p_wmnu)
 	    c = wildmenu_translate_key(&ccline, c, &xpc, did_wild_list);
@@ -2017,7 +2020,7 @@ getcmdline_int(
 	}
 
 	// Completion for 'wildchar' or 'wildcharm' key.
-	if ((c == p_wc && !gotesc && KeyTyped) || c == p_wcm)
+	if ((c == p_wc && !gotesc && KeyTyped && !in_search) || c == p_wcm)
 	{
 	    res = cmdline_wildchar_complete(c, firstc != '@', &did_wild_list,
 		    &wim_index, &xpc, &gotesc);
@@ -2028,7 +2031,7 @@ getcmdline_int(
 	gotesc = FALSE;
 
 	// <S-Tab> goes to last match, in a clumsy way
-	if (c == K_S_TAB && KeyTyped)
+	if (c == K_S_TAB && KeyTyped && !in_search)
 	{
 	    if (nextwild(&xpc, WILD_EXPAND_KEEP, 0, firstc != '@') == OK)
 	    {
@@ -2340,7 +2343,8 @@ getcmdline_int(
 #endif
 
 		// completion: longest common part
-		if (nextwild(&xpc, WILD_LONGEST, 0, firstc != '@') == FAIL)
+		if (in_search || nextwild(&xpc, WILD_LONGEST, 0, firstc != '@')
+		       == FAIL)
 		    break;
 		goto cmdline_changed;
 

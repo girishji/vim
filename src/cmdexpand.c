@@ -20,6 +20,7 @@ static int	ExpandFromContext(expand_T *xp, char_u *, char_u ***, int *, int);
 static char_u	*showmatches_gettail(char_u *s);
 static int	expand_showtail(expand_T *xp);
 static int	expand_shellcmd(char_u *filepat, char_u ***matches, int *numMatches, int flagsarg);
+static int	expand_search_pattern(char_u *pat, int patlen, int dir, char_u ***matches, int *numMatches);
 #if defined(FEAT_EVAL)
 static int	ExpandUserDefined(char_u *pat, expand_T *xp, regmatch_T *regmatch, char_u ***matches, int *numMatches);
 static int	ExpandUserList(expand_T *xp, char_u ***matches, int *numMatches);
@@ -288,14 +289,15 @@ nextwild(
 	    p2 = NULL;
 	else
 	{
-	    int use_options = options |
-		    WILD_HOME_REPLACE|WILD_ADD_SLASH|WILD_SILENT;
+	    int use_options = options | WILD_SILENT;
+
+	    if (xp->xp_context != EXPAND_SEARCH_FORWARD
+		    && xp->xp_context != EXPAND_SEARCH_BACKWARD)
+		use_options |= WILD_HOME_REPLACE | WILD_ADD_SLASH;
 	    if (use_options & WILD_KEEP_SOLE_ITEM)
 		use_options &= ~WILD_KEEP_SOLE_ITEM;
-
 	    if (escape)
 		use_options |= WILD_ESCAPE;
-
 	    if (p_wic)
 		use_options += WILD_ICASE;
 	    p2 = ExpandOne(xp, p1,
@@ -867,7 +869,8 @@ ExpandOne_start(int mode, expand_T *xp, char_u *str, int options)
 	if (!(options & WILD_SILENT))
 	    semsg(_(e_no_match_str_2), str);
     }
-    else
+    else if (xp->xp_context != EXPAND_SEARCH_FORWARD
+	    && xp->xp_context != EXPAND_SEARCH_BACKWARD)
     {
 	// Escape the matches for use on the command line.
 	ExpandEscape(xp, str, xp->xp_numfiles, xp->xp_files, options);
@@ -1456,6 +1459,8 @@ addstar(
 		|| context == EXPAND_KEYMAP
 		|| context == EXPAND_PACKADD
 		|| context == EXPAND_RUNTIME
+		|| context == EXPAND_SEARCH_FORWARD
+		|| context == EXPAND_SEARCH_BACKWARD
 		|| ((context == EXPAND_TAGS_LISTFILES
 			|| context == EXPAND_TAGS)
 		    && fname[0] == '/'))
@@ -1594,24 +1599,31 @@ addstar(
  *			    names in expressions, eg :while s^I
  *  EXPAND_ENV_VARS	    Complete environment variable names
  *  EXPAND_USER		    Complete user names
+ *  EXPAND_SEARCH_FORWARD   Complete '/' search pattern
+ *  EXPAND_SEARCH_BACKWARD  Complete '?' search pattern
  */
     void
 set_expand_context(expand_T *xp)
 {
     cmdline_info_T	*ccline = get_cmdline_info();
 
-    // only expansion for ':', '>' and '=' command-lines
-    if (ccline->cmdfirstc != ':'
+    // Expand only ':', '>', '=', '/' and '?' command-lines
+    if (ccline->cmdfirstc == '/' || ccline->cmdfirstc == '?')
+    {
+	xp->xp_context = (ccline->cmdfirstc == '/')
+	    ? EXPAND_SEARCH_FORWARD : EXPAND_SEARCH_BACKWARD;
+	xp->xp_pattern_len = ccline->cmdpos;
+	xp->xp_pattern = ccline->cmdbuff;
+    }
+    else if (ccline->cmdfirstc != ':'
 #ifdef FEAT_EVAL
 	    && ccline->cmdfirstc != '>' && ccline->cmdfirstc != '='
 	    && !ccline->input_fn
 #endif
 	    )
-    {
 	xp->xp_context = EXPAND_NOTHING;
-	return;
-    }
-    set_cmd_context(xp, ccline->cmdbuff, ccline->cmdlen, ccline->cmdpos, TRUE);
+    else
+	set_cmd_context(xp, ccline->cmdbuff, ccline->cmdlen, ccline->cmdpos, TRUE);
 }
 
 /*
@@ -3316,6 +3328,11 @@ ExpandFromContext(
 	return ExpandPackAddDir(pat, numMatches, matches);
     if (xp->xp_context == EXPAND_RUNTIME)
 	return expand_runtime_cmd(pat, numMatches, matches);
+    if (xp->xp_context == EXPAND_SEARCH_FORWARD
+	    || xp->xp_context == EXPAND_SEARCH_BACKWARD)
+	return expand_search_pattern(xp->xp_pattern, xp->xp_pattern_len,
+		xp->xp_context == EXPAND_SEARCH_FORWARD ? FORWARD : BACKWARD,
+		matches, numMatches);
 
     // When expanding a function name starting with s:, match the <SNR>nr_
     // prefix.
@@ -4436,3 +4453,177 @@ f_cmdcomplete_info(typval_T *argvars UNUSED, typval_T *rettv)
     }
 }
 #endif // FEAT_EVAL
+
+/*
+ * Copy a substring from position "start" to position "end" in the current
+ * buffer (curbuf). The range includes characters from "start" up to and
+ * including the word boundary following "end".
+ */
+    static char_u *
+copy_substring_from_pos(pos_T *start, pos_T *end)
+{
+    char_u	*result;
+    char_u	*word_end;
+    char_u	*line, *start_line, *end_line;
+    int		len;
+    linenr_T	lnum;
+    garray_T	ga;
+
+    if (start->lnum > end->lnum
+	    || (start->lnum == end->lnum && start->col >= end->col)
+	    // searchit() returns line number +1 past the last line when
+	    // searching for "foo\n" if "foo" is the last word in the curbuf.
+	    || end->lnum > curbuf->b_ml.ml_line_count)
+	return NULL; // invalid range
+
+    // Get line pointers
+    start_line = ml_get(start->lnum);
+    end_line = ml_get(end->lnum);
+
+    // Special case: single-line range
+    if (start->lnum == end->lnum)
+    {
+	word_end = find_word_end(start_line + end->col);  // col starts from 0
+	len = word_end - (start_line + start->col);
+	result = vim_strnsave(start_line + start->col, len);
+	return result;
+    }
+
+    // Multi-line: use a growable string (ga)
+    ga_init2(&ga, 1, 128);
+
+    // Append start line from start->col to end
+    if (ga_grow(&ga, (int)STRLEN(start_line + start->col)) != OK)
+	return FAIL;
+    ga_concat_len(&ga, start_line + start->col,
+	    (int)STRLEN(start_line + start->col));
+    ga_concat(&ga, (char_u *)"\\n");
+
+    // Append full lines between start and end
+    for (lnum = start->lnum + 1; lnum < end->lnum; lnum++)
+    {
+	line = ml_get(lnum);
+	ga_concat(&ga, (char_u *)line);
+	ga_concat(&ga, (char_u *)"\\n");
+    }
+
+    // Append part of end line up to word_end after end->col
+    if (start->lnum != end->lnum)
+    {
+	word_end = find_word_end(end_line + end->col);
+	len = word_end - end_line;
+	ga_concat_len(&ga, end_line, len);
+    }
+
+    // Null-terminate and return
+    ga_append(&ga, NUL);
+    return (char_u *)ga.ga_data;
+}
+
+/*
+ * Search for strings matching "pat" and return them as a list.
+ * Periodically check for user input; if a key is typed, interrupt the
+ * search early.
+ */
+    static int
+expand_search_pattern(
+    char_u	*pat,		// pattern to match
+    int		patlen,		// length of pattern string
+    int		dir,		// direction
+    char_u	***matches,	// return: array with matches
+    int		*numMatches)	// return: number of matches
+{
+    int		i, escape = FALSE, c;
+    int		found_new_match = FAIL;
+    int		looped_around = FALSE;
+    int		compl_started = FALSE;
+    pos_T	cur_match_pos, end_match_pos, prev_match_pos;
+    char_u	*match;
+    garray_T	ga;
+
+    // xxx: test
+    // Validate search pattern
+    if (!pat || patlen == 0)
+	return FAIL;
+    for (i = 0; i < patlen; i++)
+	if (!escape)
+	{
+	    if (pat[i] == '/')
+		return FAIL;
+	    if (pat[i] == '\\')
+		escape = TRUE;
+	}
+	else
+	    escape = FALSE;
+
+    // Use growable array of strings
+    ga_init2(&ga, sizeof(char_u *), 10);
+
+    // Gather matches
+    for (;;)
+    {
+	// xxx test if SEARCH_PEEK makes it slow
+	++msg_silent;  // Suppress messages for wrapscan
+	found_new_match = searchit(NULL, curbuf, &cur_match_pos,
+		&end_match_pos, dir, pat, patlen, 1L,
+		SEARCH_NFMSG + SEARCH_PEEK, RE_LAST, NULL);
+	--msg_silent;
+	if (!compl_started)
+	    compl_started = TRUE;
+	else if ((dir == FORWARD
+		    && (prev_match_pos.lnum > cur_match_pos.lnum
+			|| (prev_match_pos.lnum == cur_match_pos.lnum
+			    && prev_match_pos.col >= cur_match_pos.col)))
+		|| (dir != FORWARD
+		    && (prev_match_pos.lnum < cur_match_pos.lnum
+			|| (prev_match_pos.lnum == cur_match_pos.lnum
+			    && prev_match_pos.col <= cur_match_pos.col))))
+	{
+	    if (looped_around)
+		found_new_match = FAIL;
+	    else
+		looped_around = TRUE;
+	}
+	if (found_new_match == FAIL)
+	    break;
+	prev_match_pos = cur_match_pos;
+
+	// Check whether the user has typed a key
+	c = vpeekc_any();
+	if ((c != NUL && c != K_IGNORE) || got_int)
+	    goto cleanup;
+
+	// xxx test: multiline, pattern is same as word before cursor, chinese chars, last line with \n search
+	// Append to growable array only if string is not found in the list
+	match = copy_substring_from_pos(&cur_match_pos, &end_match_pos);
+	if (match)
+	{
+	    for (i = 0; i < ga.ga_len; i++)
+	    {
+		if (STRCMP(match, ((char_u **)ga.ga_data)[i]) == 0)
+		{
+		    VIM_CLEAR(match);
+		    break;
+		}
+	    }
+	    if (match)
+	    {
+		if (ga_grow(&ga, 1) == FAIL)
+		    goto cleanup;
+		((char_u **)ga.ga_data)[ga.ga_len++] = match;
+		if (ga.ga_len > TAG_MANY)
+		    break;
+	    }
+	}
+    }
+
+    *matches = ga.ga_data;
+    *numMatches = ga.ga_len;
+    return OK;
+
+cleanup:
+    ga_clear_strings(&ga);
+    *matches = NULL;
+    *numMatches = 0;
+    return FAIL;
+}
