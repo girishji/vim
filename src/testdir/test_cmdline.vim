@@ -2086,7 +2086,7 @@ func Test_cmd_bang_args()
 
   " Note that below there is one space char after the '!'.  This caused a
   " shell error in the past, see https://github.com/vim/vim/issues/11495.
-  :.! 
+  :.!
   call assert_equal(0, v:shell_error)
   bwipe!
 
@@ -2097,21 +2097,21 @@ func Test_cmd_bang_args()
   call assert_equal(0, v:shell_error)
 
   " Note there is one space after 'pwd'.
-  :.! pwd 
+  :.! pwd
   call assert_equal(0, v:shell_error)
 
   " Note there are two spaces after 'pwd'.
-  :.!  pwd  
+  :.!  pwd
   call assert_equal(0, v:shell_error)
   :.!ls ~
   call assert_equal(0, v:shell_error)
 
   " Note there is one space char after '~'.
-  :.!ls  ~ 
+  :.!ls  ~
   call assert_equal(0, v:shell_error)
 
   " Note there are two spaces after '~'.
-  :.!ls  ~  
+  :.!ls  ~
   call assert_equal(0, v:shell_error)
 
   :.!echo "foo"
@@ -4019,7 +4019,7 @@ func Test_recursive_register()
   silent! ?e/
   let caught = 'no'
   try
-    normal // 
+    normal //
   catch /E169:/
     let caught = 'yes'
   endtry
@@ -4308,37 +4308,235 @@ func Test_cmdcomplete_info()
   call feedkeys(":h echom\<cr>", "tx") " No expansion
   call assert_equal('{}', g:cmdcomplete_info)
   call feedkeys(":h echoms\<tab>\<cr>", "tx")
-  call assert_equal('{''cmdline_orig'': '''', ''pum_visible'': 0, ''matches'': [], ''selected'': 0}', g:cmdcomplete_info)
+  call assert_equal('{''cmdline_orig'': '''', ''pum_visible'': 0, ''matches'':
+        \ [], ''selected'': 0}', g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0, ''matches'': ['':echom'', '':echomsg''], ''selected'': 0}',
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0,
+        \ ''matches'': ['':echom'', '':echomsg''], ''selected'': 0}',
         \ g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0, ''matches'': ['':echom'', '':echomsg''], ''selected'': 1}',
-        \ g:cmdcomplete_info)
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0, ''matches'':
+        \ ['':echom'', '':echomsg''], ''selected'': 1}', g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<tab>\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0, ''matches'': ['':echom'', '':echomsg''], ''selected'': -1}',
-        \ g:cmdcomplete_info)
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 0, ''matches'':
+        \ ['':echom'', '':echomsg''], ''selected'': -1}', g:cmdcomplete_info)
 
   set wildoptions=pum
   call feedkeys(":h echoms\<tab>\<cr>", "tx")
-  call assert_equal('{''cmdline_orig'': '''', ''pum_visible'': 0, ''matches'': [], ''selected'': 0}', g:cmdcomplete_info)
+  call assert_equal('{''cmdline_orig'': '''', ''pum_visible'': 0, ''matches'':
+        \ [], ''selected'': 0}', g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'': ['':echom'', '':echomsg''], ''selected'': 0}',
-        \ g:cmdcomplete_info)
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'':
+        \ ['':echom'', '':echomsg''], ''selected'': 0}', g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'': ['':echom'', '':echomsg''], ''selected'': 1}',
-        \ g:cmdcomplete_info)
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'':
+        \ ['':echom'', '':echomsg''], ''selected'': 1}', g:cmdcomplete_info)
   call feedkeys(":h echom\<tab>\<tab>\<tab>\<cr>", "tx")
   call assert_equal(
-        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'': ['':echom'', '':echomsg''], ''selected'': -1}',
-        \ g:cmdcomplete_info)
+        \ '{''cmdline_orig'': ''h echom'', ''pum_visible'': 1, ''matches'':
+        \ ['':echom'', '':echomsg''], ''selected'': -1}', g:cmdcomplete_info)
   bw!
   set wildoptions&
+endfunc
+
+" func Test_search_complete_basic()
+ "  let g:cmdline = ''
+ "  func SelectItem()
+ "    let info = cmdcomplete_info()
+ "    let g:cmdline = info.matches
+ " " if info != {} && info.pum_visible && !info.matches->empty()
+ " "   selected_match = info.selected != -1 ? info.matches[info.selected] : info.matches[0]
+ " "   setcmdline(info.cmdline_orig)
+ " " endif
+ "    " endif
+ "  endfunc
+
+  " augroup TestSearchAutocmds | autocmd!
+  "   " autocmd CmdlineLeavePre / let g:Sline = getcmdline()
+  "   " autocmd CmdlineLeavePre / let g:Sline = Screenline(&lines - 1)
+  "   autocmd CmdlineLeavePre / call SelectItem()
+  " augroup END
+
+  " func LastScreenLine()
+  "   let g:Sline = Screenline(&lines - 1)
+  "   return ''
+  " endfunc
+  " cnoremap <expr> <F6> LastScreenLine()
+
+  " Pressing <Tab> inserts tab character
+  " new
+  " call setline(1, "x\t")
+  " call feedkeys("/x\t\r", "tx")
+  " call assert_equal("x\t", @/)
+  " %d
+
+  " set noincsearch
+
+  " cnoremap <expr> <F35> SaveLastScreenLine()
+
+  " func AssertEqualMenu(s)
+  "   " let g:Sline = Screenline(&lines - 1)
+  "   " call SaveLastScreenLine()
+  "   " call assert_equal(a:s, g:Sline)
+  "   call assert_equal(a:s, Screenline(&lines - 1))
+  "   " call feedkeys("<esc>", 'tx')
+  "   return ""
+  " endfunc
+  " <c-d> prints list
+  " call setline(1, ["foo", "foobar"])
+  " let g:Sline = ''
+  " call feedkeys("/f\<c-d>\<f35>", 'tx')
+  " call timer_start(1, {_ -> call assert_equal("foo bar", Screenline(&lines - 1))})
+  " call timer_start(1, {_ -> AssertEqualMenu('foo foobar1')})
+  " call feedkeys("\<F4>", 'tx')
+  " call assert_equal('foo  fbar', g:cmdline)
+  " call assert_equal('foo  fbar', g:Sline)
+  " call feedkeys("<esc>", 'tx')
+  " %d
+
+  " wildcharm completes
+  " call setline(1, ["foo", "foobar"])
+  " set wildcharm=<f5>
+  " let g:Sline = ''
+  " call feedkeys("/f\<f5>\<f6>\r", 'tx')
+  " call feedkeys("/f\<f5>\<cr>", 'xt')
+  " call assert_equal('foo  fbar', g:Sline)
+  " call assert_equal("x\t", @/)
+  " bw!
+
+  " set wildcharm=<nop>
+  " augroup! TestSearchAutocmds
+  " unlet g:cmdline
+" endfunc
+
+func Test_search_wildmenu_screendump()
+  CheckScreendump
+
+  let lines =<< trim [SCRIPT]
+    set wildmenu incsearch hlsearch wildcharm=<f5>
+  [SCRIPT]
+  call writefile(lines, 'XTest_search_wildmenu', 'D')
+  let buf = RunVimInTerminal('-S XTest_search_wildmenu', {'rows': 8})
+
+  " Test simple search wildmenu
+  call term_sendkeys(buf, "ifoo\<esc>/f\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_1', {})
+  call term_sendkeys(buf, "\<cr>:nohl\<cr>ofoobar\<esc>gg/f\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_2', {})
+
+  " Loop back to the original values
+  call term_sendkeys(buf, "\<tab>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_3', {})
+  call term_sendkeys(buf, "\<Tab>\<Tab>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_2', {})
+  call term_sendkeys(buf, "\<s-tab>\<s-Tab>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_3', {})
+  call term_sendkeys(buf, "\<f5>\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_2', {})
+
+  " Test that the wild menu is cleared properly
+  call term_sendkeys(buf, "\<esc>")
+  call TermWait(buf, 200)
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_4', {})
+
+  " Test that <tab> (wildchar) inserts a <tab> character
+  call term_sendkeys(buf, "/f\<tab>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_5', {})
+
+  " Search for newline at eof
+  let str = "\<esc>:%d\<cr>:nohl\<cr>"
+  let str .= "ifoo1 a b\<cr>foo2 a b\<cr>foo3 a b\<esc>/a b\\n\<f5>"
+  call term_sendkeys(buf, str)
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_6', {})
+
+  " Items are listed in the order starting from cursor position
+  call term_sendkeys(buf, "\<esc>:nohl\<cr>gg$/f\<f5>") "foo2 foo3 foo1
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_7', {})
+  call term_sendkeys(buf, "\<esc>:nohl\<cr>2G$?f\<f5>") "foo2 foo1 foo3
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_8', {})
+
+  " Identical words before cursor
+  call term_sendkeys(buf, "\<esc>:nohl\<cr>Gofoobar foobar\<esc>5h/foo\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_9', {})
+
+  " clean up
+  call term_sendkeys(buf, "\<esc>\<esc>")
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_search_wildmenu_keys()
+  CheckScreendump
+
+  let lines =<< trim [SCRIPT]
+    set wildmenu incsearch hlsearch wildcharm=<f5>
+  [SCRIPT]
+  call writefile(lines, 'XTest_search_wildmenu_keys', 'D')
+  let buf = RunVimInTerminal('-S XTest_search_wildmenu_keys', {'rows': 10})
+
+  call term_sendkeys(buf, "ifoo1 foo2\<cr>foo2 foo1\<cr>Foo1  Foo3\<cr>xfoo3  Foo2")
+
+  " Key: <c-d>
+  call term_sendkeys(buf, "\<esc>/f\<c-d>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_1', {})
+  call term_sendkeys(buf, "\<esc>:set ignorecase\<cr>/f\<c-d>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_2', {})
+  " Key: <c-a>
+  call term_sendkeys(buf, "\<esc>/\\<f\<c-a>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_3', {})
+  " Key: <c-e>
+  call term_sendkeys(buf, "\<esc>gg:nohl\<cr>/f\<f5>\<c-n>\<c-e>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_4', {})
+  " Keys: <c-g> and <c-t> (incsearch)
+  call term_sendkeys(buf, "\<esc>gg/fo\<f5>\<c-g>\<c-g>\<cr>ixyz")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_5', {})
+  call term_sendkeys(buf, "\<esc>gg/fo\<f5>\<c-g>\<c-g>\<c-t>\<cr>ixyz")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_keys_6', {})
+
+  " clean up
+  call term_sendkeys(buf, "\<esc>")
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_search_wildmenu_pat()
+  CheckScreendump
+
+  let lines =<< trim [SCRIPT]
+    set wildmenu incsearch hlsearch wildcharm=<f5>
+  [SCRIPT]
+  call writefile(lines, 'XTest_search_wildmenu_pat', 'D')
+  let buf = RunVimInTerminal('-S XTest_search_wildmenu_pat', {'rows': 8})
+
+  call term_sendkeys(buf, "ifoo1 foo2/ foo2/x\<cr>foo2 foo1? foo1?xy\<cr>foo3\ foo3\x")
+
+  " Ignore /pattern/offset and ?pattern?offset
+  call term_sendkeys(buf, "\<esc>/foo2/\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_pat_1', {})
+  call term_sendkeys(buf, "\<esc>/foo2\\/\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_pat_2', {})
+  call term_sendkeys(buf, "\<esc>?foo1?\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_pat_3', {})
+  call term_sendkeys(buf, "\<esc>?foo1\\?\<f5>")
+  call VerifyScreenDump(buf, 'Test_search_wildmenu_pat_4', {})
+
+  " XXX:: . pattern matches everything, \ / cases, ignore offset
+  " /foo\| matches the whole buffer ex_getln.c:552
+  " if folded, dont find?
+
+  " Ignore /{pattern}/{offset}
+  " call term_sendkeys(buf, "\<esc>/fo/1\<f5>")
+  " call VerifyScreenDump(buf, 'Test_search_wildmenu_9', {})
+
+  " Wildmenu is not displayed when 'nowildmenu'
+  " call term_sendkeys(buf, "\<esc>:set nowildmenu\<cr>/f\<f5>")
+  " call VerifyScreenDump(buf, 'Test_search_wildmenu_10', {})
+  " clean up
+  call term_sendkeys(buf, "\<esc>")
+  call StopVimInTerminal(buf)
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

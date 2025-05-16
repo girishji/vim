@@ -409,7 +409,8 @@ finish_incsearch_highlighting(
 may_do_incsearch_highlighting(
 	int		    firstc,
 	long		    count,
-	incsearch_state_T   *is_state)
+	incsearch_state_T   *is_state,
+	int		    redr_status)
 {
     int		skiplen, patlen;
     int		found;  // do_search() result
@@ -565,7 +566,7 @@ may_do_incsearch_highlighting(
 
     // May redraw the status line to show the cursor position.
     if (p_ru && curwin->w_status_height > 0)
-	curwin->w_redr_status = TRUE;
+	curwin->w_redr_status = redr_status;
 
     update_screen(UPD_SOME_VALID);
     highlight_match = FALSE;
@@ -1621,7 +1622,7 @@ getcmdline_int(
     int		cmdline_type;
     int		wild_type = 0;
     int		event_cmdlineleavepre_triggered = FALSE;
-    int		in_search = (firstc == '/' || firstc == '?');
+    int		search_prompt = (firstc == '/' || firstc == '?');
 
     // one recursion level deeper
     ++depth;
@@ -1897,10 +1898,6 @@ getcmdline_int(
 	// CTRL-P (unless 'wc' is <S-Tab>).
 	if (c != p_wc && c == K_S_TAB && xpc.xp_numfiles > 0)
 	    c = Ctrl_P;
-	// When search ('/' or '?') command is being completed <Tab> works like
-	// CTRL-N.
-	if (c == p_wc && xpc.xp_numfiles > 0 && in_search)
-	    c = Ctrl_N;
 
 	if (p_wmnu)
 	    c = wildmenu_translate_key(&ccline, c, &xpc, did_wild_list);
@@ -2019,11 +2016,27 @@ getcmdline_int(
 	    }
 	}
 
+	// int wildmenu_active = (cmdline_pum_active() || did_wild_list);
+	//
 	// Completion for 'wildchar' or 'wildcharm' key.
-	if ((c == p_wc && !gotesc && KeyTyped && !in_search) || c == p_wcm)
+	key_is_wc = (c == p_wc && !gotesc && KeyTyped);
+	if (((!search_prompt || xpc.xp_numfiles > 0) && key_is_wc)
+		|| c == p_wcm)
+	// if (((!search_prompt && key_is_wc) || c == p_wcm)
+		// || (search_prompt && (!wildmenu_active && c == p_wcm)
+		    // || (wildmenu_active && key_is_wc)))
+	// if (((!search_prompt && key_is_wc) || c == p_wcm)
+		// || (search_prompt && c == p_wcm)
+		// In the search prompt, <Tab> selects the completion item even
+		// if there's only one match (when "noselect" is present).
+		// || (xpc.xp_numfiles > 0 && key_is_wc))
+		// || (search_prompt && wildmenu_active && (key_is_wc || c == p_wcm)))
 	{
 	    res = cmdline_wildchar_complete(c, firstc != '@', &did_wild_list,
 		    &wim_index, &xpc, &gotesc);
+	    // char str[40];
+	    // sprintf(str, "giri %c %d", c, xpc.xp_numfiles);
+	    // msg(str);
 	    if (res == CMDLINE_CHANGED)
 		goto cmdline_changed;
 	}
@@ -2031,7 +2044,7 @@ getcmdline_int(
 	gotesc = FALSE;
 
 	// <S-Tab> goes to last match, in a clumsy way
-	if (c == K_S_TAB && KeyTyped && !in_search)
+	if (c == K_S_TAB && KeyTyped && !search_prompt)
 	{
 	    if (nextwild(&xpc, WILD_EXPAND_KEEP, 0, firstc != '@') == OK)
 	    {
@@ -2058,6 +2071,17 @@ getcmdline_int(
 	// further.
 	if (wild_type == WILD_CANCEL || wild_type == WILD_APPLY)
 	{
+#ifdef FEAT_SEARCH_EXTRA
+	    // Apply search highlighting
+	    if (search_prompt && wild_type == WILD_APPLY)
+	    {
+		// If the window changed, incremental search state is not valid.
+		if (is_state.winid != curwin->w_id)
+		    init_incsearch_state(&is_state);
+		if (KeyTyped || vpeekc() == NUL)
+		    may_do_incsearch_highlighting(firstc, count, &is_state, TRUE);
+	    }
+#endif
 	    wild_type = 0;
 	    goto cmdline_not_changed;
 	}
@@ -2343,8 +2367,8 @@ getcmdline_int(
 #endif
 
 		// completion: longest common part
-		if (in_search || nextwild(&xpc, WILD_LONGEST, 0, firstc != '@')
-		       == FAIL)
+		if (search_prompt || nextwild(&xpc, WILD_LONGEST, 0,
+			    firstc != '@') == FAIL)
 		    break;
 		goto cmdline_changed;
 
@@ -2527,7 +2551,7 @@ cmdline_not_changed:
 
 cmdline_changed:
 #ifdef FEAT_SEARCH_EXTRA
-	// If the window changed incremental search state is not valid.
+	// If the window changed, incremental search state is not valid.
 	if (is_state.winid != curwin->w_id)
 	    init_incsearch_state(&is_state);
 #endif
@@ -2543,8 +2567,16 @@ cmdline_changed:
 	}
 
 #ifdef FEAT_SEARCH_EXTRA
-	if (xpc.xp_context == EXPAND_NOTHING && (KeyTyped || vpeekc() == NUL))
-	    may_do_incsearch_highlighting(firstc, count, &is_state);
+	// if ((xpc.xp_context == EXPAND_NOTHING) && (KeyTyped || vpeekc() == NUL))
+	    // may_do_incsearch_highlighting(firstc, count, &is_state, TRUE);
+	// NOTE: 'wildmode=list' is incompatible with 'incsearch' during '/'
+	// and '?' because the screen is redrawn during incremental search,
+	// causing the list to disappear prematurely.
+	if ((xpc.xp_context == EXPAND_NOTHING || search_prompt)
+		&& (KeyTyped || vpeekc() == NUL)
+		&& !(wim_flags[0] & WIM_LIST))
+	    may_do_incsearch_highlighting(firstc, count, &is_state,
+		    xpc.xp_numfiles <= 0);
 #endif
 
 #ifdef FEAT_RIGHTLEFT

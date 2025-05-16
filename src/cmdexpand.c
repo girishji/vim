@@ -869,11 +869,12 @@ ExpandOne_start(int mode, expand_T *xp, char_u *str, int options)
 	if (!(options & WILD_SILENT))
 	    semsg(_(e_no_match_str_2), str);
     }
-    else if (xp->xp_context != EXPAND_SEARCH_FORWARD
-	    && xp->xp_context != EXPAND_SEARCH_BACKWARD)
+    else
     {
-	// Escape the matches for use on the command line.
-	ExpandEscape(xp, str, xp->xp_numfiles, xp->xp_files, options);
+	if (xp->xp_context != EXPAND_SEARCH_FORWARD
+		&& xp->xp_context != EXPAND_SEARCH_BACKWARD)
+	    // Escape the matches for use on the command line.
+	    ExpandEscape(xp, str, xp->xp_numfiles, xp->xp_files, options);
 
 	// Check for matching suffixes in file names.
 	if (mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST)
@@ -4537,18 +4538,20 @@ expand_search_pattern(
     int		found_new_match = FAIL;
     int		looped_around = FALSE;
     int		compl_started = FALSE;
-    pos_T	cur_match_pos, end_match_pos, prev_match_pos;
+    pos_T	cur_match_pos = curwin->w_cursor;
+    pos_T	end_match_pos, prev_match_pos;
     char_u	*match;
     garray_T	ga;
 
     // xxx: test
-    // Validate search pattern
     if (!pat || patlen == 0)
 	return FAIL;
+    // Ignore /{pattern}/{offset} and ?{pattern}?{offset}
     for (i = 0; i < patlen; i++)
 	if (!escape)
 	{
-	    if (pat[i] == '/')
+	    if ((dir == FORWARD && pat[i] == '/')
+		    || (dir == BACKWARD && pat[i] == '?'))
 		return FAIL;
 	    if (pat[i] == '\\')
 		escape = TRUE;
@@ -4562,7 +4565,6 @@ expand_search_pattern(
     // Gather matches
     for (;;)
     {
-	// xxx test if SEARCH_PEEK makes it slow
 	++msg_silent;  // Suppress messages for wrapscan
 	found_new_match = searchit(NULL, curbuf, &cur_match_pos,
 		&end_match_pos, dir, pat, patlen, 1L,
@@ -4589,8 +4591,9 @@ expand_search_pattern(
 	prev_match_pos = cur_match_pos;
 
 	// Check whether the user has typed a key
-	c = vpeekc_any();
-	if ((c != NUL && c != K_IGNORE) || got_int)
+	// c = vpeekc_any();
+	// if ((c != NUL && c != K_IGNORE) || got_int)
+	if (char_avail() || got_int)
 	    goto cleanup;
 
 	// xxx test: multiline, pattern is same as word before cursor, chinese chars, last line with \n search
