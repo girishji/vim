@@ -198,6 +198,11 @@ static expand_T	  compl_xp;
 static win_T	  *compl_curr_win = NULL;  // win where completion is active
 static buf_T	  *compl_curr_buf = NULL;  // buf where completion is active
 
+# ifdef ELAPSED_FUNC
+static elapsed_T  compl_start_tv;	    // completion start time
+static int	  compl_timed_out = FALSE;
+#endif
+
 // List of flags for method of completion.
 static int	  compl_cont_status = 0;
 # define CONT_ADDING	1	// "normal" or "adding" expansion
@@ -2137,6 +2142,7 @@ ins_compl_clear(void)
     VIM_CLEAR_STRING(compl_orig_text);
     compl_enter_selects = FALSE;
     cpt_sources_clear();
+    compl_timed_out = FALSE;
 #ifdef FEAT_EVAL
     // clear v:completed_item
     set_vim_var_dict(VV_COMPLETED_ITEM, dict_alloc_lock(VAR_FIXED));
@@ -2459,6 +2465,7 @@ ins_compl_restart(void)
     compl_cont_status = 0;
     compl_cont_mode = 0;
     cpt_sources_clear();
+    compl_timed_out = FALSE;
 }
 
 /*
@@ -5250,8 +5257,8 @@ ins_compl_get_exp(pos_T *ini)
 	found_new_match = FAIL;
 
     i = -1;		// total of matches, unknown
-    if (found_new_match == FAIL || (ctrl_x_mode_not_default()
-					       && !ctrl_x_mode_line_or_eval()))
+    if (found_new_match == FAIL || compl_timed_out
+	    || (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()))
 	i = ins_compl_make_cyclic();
 
     if (cfc_has_mode() && compl_get_longest && compl_num_bests > 0)
@@ -5813,6 +5820,14 @@ ins_compl_check_keys(int frequency, int in_compl_func)
 	compl_pending = 0;
 	(void)ins_compl_next(FALSE, todo, TRUE);
     }
+# ifdef ELAPSED_FUNC
+    if (p_ctm > 0)
+    {
+	long	elapsed_ms = ELAPSED_FUNC(compl_start_tv);
+	if (elapsed_ms > p_ctm)
+	    compl_interrupted = compl_timed_out = TRUE;
+    }
+#endif
 }
 
 /*
@@ -6655,6 +6670,11 @@ ins_complete(int c, int enable_pum)
     compl_shown_match = compl_curr_match;
     compl_shows_dir = compl_direction;
 
+# ifdef ELAPSED_FUNC
+    if (p_ctm > 0)
+	ELAPSED_INIT(compl_start_tv);  // Start the timer
+#endif
+
     // Find next match (and following matches).
     save_w_wrow = curwin->w_wrow;
     save_w_leftcol = curwin->w_leftcol;
@@ -6699,7 +6719,7 @@ ins_complete(int c, int enable_pum)
     ins_compl_show_statusmsg();
 
     // Show the popup menu, unless we got interrupted.
-    if (enable_pum && !compl_interrupted)
+    if (enable_pum && (!compl_interrupted || compl_timed_out))
 	show_pum(save_w_wrow, save_w_leftcol);
 
     compl_was_interrupted = compl_interrupted;
