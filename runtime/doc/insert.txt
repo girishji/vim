@@ -1128,6 +1128,8 @@ CTRL-P			Find previous match for words that start with the
 			copy the words following the previous expansion in
 			other contexts unless a double CTRL-X is used.
 
+			See also |'autocomplete'|.
+
 
 Stop completion						*compl-stop*
 

@@ -198,6 +198,11 @@ static expand_T	  compl_xp;
 static win_T	  *compl_curr_win = NULL;  // win where completion is active
 static buf_T	  *compl_curr_buf = NULL;  // buf where completion is active
 
+#ifdef ELAPSED_FUNC
+static elapsed_T  compl_start_tv;	    // completion start time
+#endif
+static int	  compl_timed_out = FALSE;
+
 // List of flags for method of completion.
 static int	  compl_cont_status = 0;
 # define CONT_ADDING	1	// "normal" or "adding" expansion
@@ -815,7 +820,8 @@ cfc_has_mode(void)
     static int
 is_nearest_active(void)
 {
-    return (get_cot_flags() & (COT_NEAREST | COT_FUZZY)) == COT_NEAREST;
+    return !((get_cot_flags() & COT_FUZZY)
+	    || !(p_ac || (get_cot_flags() & COT_NEAREST)));
 }
 
 /*
@@ -1267,7 +1273,7 @@ ins_compl_del_pum(void)
 pum_wanted(void)
 {
     // 'completeopt' must contain "menu" or "menuone"
-    if ((get_cot_flags() & COT_ANY_MENU) == 0)
+    if ((get_cot_flags() & COT_ANY_MENU) == 0 && !p_ac)
 	return FALSE;
 
     // The display looks bad on a B&W display.
@@ -1300,7 +1306,7 @@ pum_enough_matches(void)
 	compl = compl->cp_next;
     } while (!is_first_match(compl));
 
-    if (get_cot_flags() & COT_MENUONE)
+    if ((get_cot_flags() & COT_MENUONE) || p_ac)
 	return (i >= 1);
     return (i >= 2);
 }
@@ -1479,7 +1485,7 @@ ins_compl_build_pum(void)
     int		i = 0;
     int		cur = -1;
     unsigned int cur_cot_flags = get_cot_flags();
-    int		compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
+    int		compl_no_select = p_ac || (cur_cot_flags & COT_NOSELECT) != 0;
     int		fuzzy_filter = (cur_cot_flags & COT_FUZZY) != 0;
     compl_T	*match_head = NULL;
     compl_T	*match_tail = NULL;
@@ -2137,6 +2143,7 @@ ins_compl_clear(void)
     VIM_CLEAR_STRING(compl_orig_text);
     compl_enter_selects = FALSE;
     cpt_sources_clear();
+    compl_timed_out = FALSE;
 #ifdef FEAT_EVAL
     // clear v:completed_item
     set_vim_var_dict(VV_COMPLETED_ITEM, dict_alloc_lock(VAR_FIXED));
@@ -2226,7 +2233,7 @@ ins_compl_len(void)
 ins_compl_has_preinsert(void)
 {
     int cur_cot_flags = get_cot_flags();
-    return (cur_cot_flags & (COT_PREINSERT | COT_FUZZY | COT_MENUONE))
+    return !p_ac && (cur_cot_flags & (COT_PREINSERT | COT_FUZZY | COT_MENUONE))
 	== (COT_PREINSERT | COT_MENUONE);
 }
 
@@ -2459,6 +2466,7 @@ ins_compl_restart(void)
     compl_cont_status = 0;
     compl_cont_mode = 0;
     cpt_sources_clear();
+    compl_timed_out = FALSE;
 }
 
 /*
@@ -5250,8 +5258,8 @@ ins_compl_get_exp(pos_T *ini)
 	found_new_match = FAIL;
 
     i = -1;		// total of matches, unknown
-    if (found_new_match == FAIL || (ctrl_x_mode_not_default()
-					       && !ctrl_x_mode_line_or_eval()))
+    if (found_new_match == FAIL || compl_timed_out
+	    || (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()))
 	i = ins_compl_make_cyclic();
 
     if (cfc_has_mode() && compl_get_longest && compl_num_bests > 0)
@@ -5526,7 +5534,7 @@ find_next_completion_match(
     int	    found_end = FALSE;
     compl_T *found_compl = NULL;
     unsigned int cur_cot_flags = get_cot_flags();
-    int	    compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
+    int	    compl_no_select = p_ac || (cur_cot_flags & COT_NOSELECT) != 0;
     int	    compl_fuzzy_match = (cur_cot_flags & COT_FUZZY) != 0;
 
     while (--todo >= 0)
@@ -5649,7 +5657,7 @@ ins_compl_next(
     int	    started = compl_started;
     buf_T   *orig_curbuf = curbuf;
     unsigned int cur_cot_flags = get_cot_flags();
-    int	    compl_no_insert = (cur_cot_flags & COT_NOINSERT) != 0;
+    int	    compl_no_insert = p_ac || (cur_cot_flags & COT_NOINSERT) != 0;
     int	    compl_fuzzy_match = (cur_cot_flags & COT_FUZZY) != 0;
     int	    compl_preinsert = ins_compl_has_preinsert();
 
@@ -5781,7 +5789,13 @@ ins_compl_check_keys(int frequency, int in_compl_func)
     // Check for a typed key.  Do use mappings, otherwise vim_is_ctrl_x_key()
     // can't do its work correctly.
     c = vpeekc_any();
-    if (c != NUL)
+    if (c != NUL
+#ifdef FEAT_EVAL
+	    // If test_override("char_avail", 1) was called, ignore characters
+	    // waiting in the typeahead buffer.
+	    && !disable_char_avail_for_testing
+#endif
+       )
     {
 	if (vim_is_ctrl_x_key(c) && c != Ctrl_X && c != Ctrl_R)
 	{
@@ -5806,13 +5820,22 @@ ins_compl_check_keys(int frequency, int in_compl_func)
 	    }
 	}
     }
-    if (compl_pending != 0 && !got_int && !(cot_flags & COT_NOINSERT))
+    // Insert the first match right away, before all matches are found
+    if (compl_pending != 0 && !got_int && !(cot_flags & COT_NOINSERT) && !p_ac)
     {
 	int todo = compl_pending > 0 ? compl_pending : -compl_pending;
 
 	compl_pending = 0;
 	(void)ins_compl_next(FALSE, todo, TRUE);
     }
+#ifdef ELAPSED_FUNC
+    if (p_ac)
+    {
+	long	elapsed_ms = ELAPSED_FUNC(compl_start_tv);
+	if (elapsed_ms > 100L)
+	    compl_interrupted = compl_timed_out = TRUE;
+    }
+#endif
 }
 
 /*
@@ -6655,6 +6678,11 @@ ins_complete(int c, int enable_pum)
     compl_shown_match = compl_curr_match;
     compl_shows_dir = compl_direction;
 
+# ifdef ELAPSED_FUNC
+    if (p_ac)
+	ELAPSED_INIT(compl_start_tv);  // Start the timer
+#endif
+
     // Find next match (and following matches).
     save_w_wrow = curwin->w_wrow;
     save_w_leftcol = curwin->w_leftcol;
@@ -6699,7 +6727,7 @@ ins_complete(int c, int enable_pum)
     ins_compl_show_statusmsg();
 
     // Show the popup menu, unless we got interrupted.
-    if (enable_pum && !compl_interrupted)
+    if (enable_pum && (!compl_interrupted || compl_timed_out))
 	show_pum(save_w_wrow, save_w_leftcol);
 
     compl_was_interrupted = compl_interrupted;

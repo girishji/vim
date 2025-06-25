@@ -4404,6 +4404,135 @@ func Test_smartcase_normal_mode()
   delfunc TestInner
 endfunc
 
+" Test autocomplete timing
+func Test_autocomplete_timer()
+
+  let g:CallCount = 0
+  func! TestComplete(delay, check, refresh, findstart, base)
+    if a:findstart
+      return col('.') - 1
+    else
+      let g:CallCount += 1
+      if a:delay
+        sleep 101m  " Exceed timeout value (100ms)
+      endif
+      if a:check
+        while !complete_check()
+          sleep 2m
+        endwhile
+        return v:none  " This should trigger after 100ms
+      endif
+      let res = [["ab", "ac", "ad"], ["abb", "abc", "abd"], ["acb", "cc", "cd"]]
+      if a:refresh
+        return #{words: res[g:CallCount - 1], refresh: 'always'}
+      endif
+      return res[g:CallCount - 1]
+    endif
+  endfunc
+
+  " Trigger expansion even when another char is waiting in the typehead (only
+  " for testing).
+  call test_override("char_avail", 1)
+
+  new
+  inoremap <buffer> <F2> <Cmd>let b:matches = complete_info(["matches"]).matches<CR>
+  inoremap <buffer> <F3> <Cmd>let b:selected = complete_info(["selected"]).selected<CR>
+  set autocomplete
+
+  call setline(1, ['abc', 'bcd', 'cde'])
+
+  " Test 1a: When timeout expires (100ms) before all matches are found, it
+  "         remains in 'collection' mode. Function delays and expires timeout
+  "         but returns matches.
+  set complete=.,Ffunction('TestComplete'\\,\ [1\\,\ 0\\,\ 0])
+  call feedkeys("Goa\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab', 'ac', 'ad'], b:matches->mapnew('v:val.word'))
+  call assert_equal(1, g:CallCount)
+
+  let g:CallCount = 0
+  call feedkeys("Sab\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'abb', 'abd'], b:matches->mapnew('v:val.word'))
+  call assert_equal(2, g:CallCount)
+
+  let g:CallCount = 0
+  call feedkeys("Sab\<bs>\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'acb'], b:matches->mapnew('v:val.word'))
+  call assert_equal(3, g:CallCount)
+
+  " Test 1b: Simulate long running func that is stuck in complete_check()
+  let g:CallCount = 0
+  set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 1\\,\ 0])
+  call feedkeys("Sa\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc'], b:matches->mapnew('v:val.word'))
+  call assert_equal(1, g:CallCount)
+
+  let g:CallCount = 0
+  call feedkeys("Sab\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc'], b:matches->mapnew('v:val.word'))
+  call assert_equal(2, g:CallCount)
+
+  " Test 2: When matches are found before timeout, transition to 'filter' mode
+  set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 0])
+  let g:CallCount = 0
+  call feedkeys("Sa\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab', 'ac', 'ad'], b:matches->mapnew('v:val.word'))
+  call assert_equal(1, g:CallCount)
+
+  let g:CallCount = 0
+  call feedkeys("Sab\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab'], b:matches->mapnew('v:val.word'))
+  call assert_equal(1, g:CallCount)
+
+  " Test 3: refresh:always stays in 'collection' mode
+  set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 1])
+  let g:CallCount = 0
+  call feedkeys("Sa\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab', 'ac', 'ad'], b:matches->mapnew('v:val.word'))
+  call assert_equal(1, g:CallCount)
+
+  let g:CallCount = 0
+  call feedkeys("Sab\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'abb', 'abd'], b:matches->mapnew('v:val.word'))
+  call assert_equal(2, g:CallCount)
+
+  " Test 4: <tab> and <s-tab> navigate menu
+  set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 0])
+  let g:CallCount = 0
+  call feedkeys("Sab\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab'], b:matches->mapnew('v:val.word'))
+  call assert_equal(0, b:selected)
+  call assert_equal(1, g:CallCount)
+  call feedkeys("Sab\<tab>\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call assert_equal(1, b:selected)
+  call feedkeys("Sab\<tab>\<s-tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call assert_equal(-1, b:selected)
+
+  " Test 5: Following 'cot' option values have no effect
+  set completeopt=menu,menuone,noselect,noinsert,longest,preinsert
+  set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 0])
+  let g:CallCount = 0
+  call feedkeys("Sab\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call assert_equal(['abc', 'ab'], b:matches->mapnew('v:val.word'))
+  call assert_equal(0, b:selected)
+  call assert_equal(1, g:CallCount)
+  call assert_equal('ab', getline(4))
+  set completeopt&
+
+  " Test 6: Matches nearest to the cursor are prioritized (by default)
+  %d
+  let g:CallCount = 0
+  set complete=.
+  call setline(1, ["fo", "foo", "foobar", "foobarbaz"])
+  call feedkeys("jof\<F2>\<Esc>0", 'tx!')
+  call assert_equal(['foobar', 'foo', 'foobarbaz', 'fo'], b:matches->mapnew('v:val.word'))
+
+  bw!
+  call test_override("char_avail", 0)
+  delfunc TestComplete
+  set autocomplete& complete&
+  unlet g:CallCount
+endfunc
+
 " Test 'nearest' flag of 'completeopt'
 func Test_nearest_cpt_option()
 

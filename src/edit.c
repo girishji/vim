@@ -650,6 +650,14 @@ edit(
 			&& (c = ins_compl_bs()) == NUL)
 		continue;
 
+#ifdef ELAPSED_FUNC
+	    // Map <Tab> and <S-Tab> to select items in the completion menu.
+	    if (p_ac && (c == TAB || c == K_S_TAB))
+	    {
+		c = (c == TAB) ? Ctrl_N : Ctrl_P;
+		goto docomplete;
+	    }
+#endif
 	    // When no match was selected or it was edited.
 	    if (!ins_compl_used_match())
 	    {
@@ -1400,6 +1408,11 @@ normalchar:
 	    // When inserting a character the cursor line must never be in a
 	    // closed fold.
 	    foldOpenCursor();
+#endif
+#ifdef ELAPSED_FUNC
+	    // Autocomplete
+	    if (p_ac && !char_avail() && vim_iswordc(c))
+		goto docomplete;
 #endif
 	    break;
 	}   // end of switch (c)
@@ -2233,6 +2246,10 @@ insertchar(
     if (       !ISSPECIAL(c)
 	    && (!has_mbyte || (*mb_char2len)(c) == 1)
 	    && !has_insertcharpre()
+#ifdef FEAT_EVAL
+	    // Skip typeahead if test_override("char_avail", 1) was called.
+	    && !disable_char_avail_for_testing
+#endif
 	    && vpeekc() != NUL
 	    && !(State & REPLACE_FLAG)
 	    && !cindent_on()
