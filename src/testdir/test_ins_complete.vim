@@ -4495,27 +4495,27 @@ func Test_autocomplete_timer()
   call assert_equal(['abc', 'abb', 'abd'], b:matches->mapnew('v:val.word'))
   call assert_equal(2, g:CallCount)
 
-  " Test 4: <tab> and <s-tab> navigate menu
+  " Test 4: <c-n> and <c-p> navigate menu
   set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 0])
   let g:CallCount = 0
-  call feedkeys("Sab\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call feedkeys("Sab\<c-n>\<F2>\<F3>\<Esc>0", 'tx!')
   call assert_equal(['abc', 'ab'], b:matches->mapnew('v:val.word'))
   call assert_equal(0, b:selected)
   call assert_equal(1, g:CallCount)
-  call feedkeys("Sab\<tab>\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call feedkeys("Sab\<c-n>\<c-n>\<F2>\<F3>\<Esc>0", 'tx!')
   call assert_equal(1, b:selected)
-  call feedkeys("Sab\<tab>\<s-tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call feedkeys("Sab\<c-n>\<c-p>\<F2>\<F3>\<Esc>0", 'tx!')
   call assert_equal(-1, b:selected)
 
   " Test 5: Following 'cot' option values have no effect
   set completeopt=menu,menuone,noselect,noinsert,longest,preinsert
   set complete=.,Ffunction('TestComplete'\\,\ [0\\,\ 0\\,\ 0])
   let g:CallCount = 0
-  call feedkeys("Sab\<tab>\<F2>\<F3>\<Esc>0", 'tx!')
+  call feedkeys("Sab\<c-n>\<F2>\<F3>\<Esc>0", 'tx!')
   call assert_equal(['abc', 'ab'], b:matches->mapnew('v:val.word'))
   call assert_equal(0, b:selected)
   call assert_equal(1, g:CallCount)
-  call assert_equal('ab', getline(4))
+  call assert_equal('abc', getline(4))
   set completeopt&
 
   " Test 6: Matches nearest to the cursor are prioritized (by default)

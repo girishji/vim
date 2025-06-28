@@ -650,14 +650,6 @@ edit(
 			&& (c = ins_compl_bs()) == NUL)
 		continue;
 
-#ifdef ELAPSED_FUNC
-	    // Map <Tab> and <S-Tab> to select items in the completion menu.
-	    if (p_ac && (c == TAB || c == K_S_TAB))
-	    {
-		c = (c == TAB) ? Ctrl_N : Ctrl_P;
-		goto docomplete;
-	    }
-#endif
 	    // When no match was selected or it was edited.
 	    if (!ins_compl_used_match())
 	    {
@@ -1411,7 +1403,7 @@ normalchar:
 #endif
 #ifdef ELAPSED_FUNC
 	    // Autocomplete
-	    if (p_ac && !char_avail() && vim_iswordc(c))
+	    if (p_ac && !char_avail() && vim_isprintc(c) && !VIM_ISWHITE(c))
 		goto docomplete;
 #endif
 	    break;
