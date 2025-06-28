@@ -6338,7 +6338,10 @@ compl_get_info(char_u *line, int startcol, colnr_T curs_col, int *line_invalid)
 	    || (ctrl_x_mode & CTRL_X_WANT_IDENT
 		&& !thesaurus_func_complete(ctrl_x_mode)))
     {
-	return get_normal_compl_info(line, startcol, curs_col);
+	if (get_normal_compl_info(line, startcol, curs_col) != OK)
+	    return FAIL;
+	*line_invalid = TRUE;	// "line" may have become invalid due to
+				// F{func} in 'cpt'
     }
     else if (ctrl_x_mode_line_or_eval())
     {
@@ -6525,7 +6528,9 @@ ins_compl_start(void)
 	compl_startpos.col = compl_col;
     }
 
-    if (compl_cont_status & CONT_LOCAL)
+    if (p_ac)
+	edit_submode = NULL;
+    else if (compl_cont_status & CONT_LOCAL)
 	edit_submode = (char_u *)_(ctrl_x_msgs[CTRL_X_LOCAL_MSG]);
     else
 	edit_submode = (char_u *)_(CTRL_X_MSG(ctrl_x_mode));
@@ -6550,14 +6555,17 @@ ins_compl_start(void)
 	return FAIL;
     }
 
-    // showmode might reset the internal line pointers, so it must
-    // be called before line = ml_get(), or when this address is no
-    // longer needed.  -- Acevedo.
-    edit_submode_extra = (char_u *)_("-- Searching...");
-    edit_submode_highl = HLF_COUNT;
-    showmode();
-    edit_submode_extra = NULL;
-    out_flush();
+    if (!p_ac)
+    {
+	// showmode might reset the internal line pointers, so it must
+	// be called before line = ml_get(), or when this address is no
+	// longer needed.  -- Acevedo.
+	edit_submode_extra = (char_u *)_("-- Searching...");
+	edit_submode_highl = HLF_COUNT;
+	showmode();
+	edit_submode_extra = NULL;
+	out_flush();
+    }
 
     return OK;
 }
