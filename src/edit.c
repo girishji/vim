@@ -1404,7 +1404,10 @@ normalchar:
 #ifdef ELAPSED_FUNC
 	    // Autocomplete
 	    if (p_ac && !char_avail() && vim_isprintc(c) && !VIM_ISWHITE(c))
+	    {
+		ins_enable_autocomplete();
 		goto docomplete;
+	    }
 #endif
 	    break;
 	}   // end of switch (c)
