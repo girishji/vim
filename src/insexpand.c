@@ -259,7 +259,7 @@ static void ins_compl_fixRedoBufForLeader(char_u *ptr_arg);
 static void ins_compl_add_list(list_T *list);
 static void ins_compl_add_dict(dict_T *dict);
 static int get_userdefined_compl_info(colnr_T curs_col, callback_T *cb, int *startcol);
-static void get_cpt_func_completion_matches(callback_T *cb, int restore_leader);
+static void get_cpt_func_completion_matches(callback_T *cb);
 static callback_T *get_callback_if_cpt_func(char_u *p);
 # endif
 static int setup_cpt_sources(void);
@@ -1423,6 +1423,32 @@ cp_compare_nearest(const void* a, const void* b)
 }
 
 /*
+ * Constructs a new string by prepending text from the current line (from
+ * startcol to compl_col) to the given source string. Stores the result in
+ * dest. Returns OK or FAIL.
+ */
+    static int
+prepend_startcol_text(string_T *dest, string_T *src, int startcol)
+{
+    int prepend_len = compl_col - startcol;
+    int new_length = prepend_len + src->length;
+
+    dest->length = (size_t)new_length;
+
+    dest->string = alloc(new_length + 1);  // +1 for NUL
+    if (dest->string == NULL)
+    {
+	dest->length = 0;
+	return FAIL;
+    }
+    char_u	*line = ml_get(curwin->w_cursor.lnum);
+    mch_memmove(dest->string, line + startcol, prepend_len);
+    mch_memmove(dest->string + prepend_len, src->string, src->length);
+    dest->string[new_length] = NUL;
+    return OK;
+}
+
+/*
  * Returns the completion leader string adjusted for a specific source's
  * startcol. If the source's startcol is before compl_col, prepends text from
  * the buffer line to the original compl_leader.
@@ -1455,19 +1481,10 @@ get_leader_for_startcol(compl_T *match, int cached)
 	    return &adjusted_leader;
 
 	VIM_CLEAR_STRING(adjusted_leader);
-	adjusted_leader.length = (size_t)new_length;
-
-	adjusted_leader.string = alloc(new_length + 1);  // +1 for NUL
-	if (adjusted_leader.string == NULL)
-	{
-	    adjusted_leader.length = 0;
+	if (prepend_startcol_text(&adjusted_leader, &compl_leader,
+		    startcol) != OK)
 	    goto theend;
-	}
-	char_u	*line = ml_get(curwin->w_cursor.lnum);
-	mch_memmove(adjusted_leader.string, line + startcol, prepend_len);
-	mch_memmove(adjusted_leader.string + prepend_len, compl_leader.string,
-		compl_leader.length);
-	adjusted_leader.string[new_length] = NUL;
+
 	return &adjusted_leader;
     }
 theend:
@@ -5057,7 +5074,7 @@ get_next_completion_match(int type, ins_compl_next_state_T *st, pos_T *ini)
 #ifdef FEAT_COMPL_FUNC
 	case CTRL_X_FUNCTION:
 	    if (ctrl_x_mode_normal())  // Invoked by a func in 'cpt' option
-		get_cpt_func_completion_matches(st->func_cb, TRUE);
+		get_cpt_func_completion_matches(st->func_cb);
 	    else
 		expand_by_function(type, compl_pattern.string, NULL);
 	    break;
@@ -6268,27 +6285,35 @@ set_compl_globals(
     colnr_T	curs_col UNUSED,
     int		is_cpt_compl UNUSED)
 {
-    char_u	*line = NULL;
-    string_T	*pattern = NULL;
-    int		len;
-
-    if (startcol < 0 || startcol > curs_col)
-	startcol = curs_col;
-    len = curs_col - startcol;
-
-    // Re-obtain line in case it has changed
-    line = ml_get(curwin->w_cursor.lnum);
-
-    pattern = is_cpt_compl ? &cpt_compl_pattern : &compl_pattern;
-    pattern->string = vim_strnsave(line + startcol, (size_t)len);
-    if (pattern->string == NULL)
+    if (is_cpt_compl)
     {
-	pattern->length = 0;
-	return FAIL;
+	VIM_CLEAR_STRING(cpt_compl_pattern);
+	if (startcol < compl_col)
+	    return prepend_startcol_text(&cpt_compl_pattern, &compl_orig_text,
+		    startcol);
+	else
+	{
+	    cpt_compl_pattern.string = vim_strnsave(compl_orig_text.string,
+		    compl_orig_text.length);
+	    cpt_compl_pattern.length = compl_orig_text.length;
+	}
     }
-    pattern->length = (size_t)len;
-    if (!is_cpt_compl)
+    else
     {
+	if (startcol < 0 || startcol > curs_col)
+	    startcol = curs_col;
+
+	// Re-obtain line in case it has changed
+	char_u	*line = ml_get(curwin->w_cursor.lnum);
+	int	len = curs_col - startcol;
+
+	compl_pattern.string = vim_strnsave(line + startcol, (size_t)len);
+	if (compl_pattern.string == NULL)
+	{
+	    compl_pattern.length = 0;
+	    return FAIL;
+	}
+	compl_pattern.length = (size_t)len;
 	compl_col = startcol;
 	compl_length = len;
     }
@@ -6647,7 +6672,6 @@ ins_compl_start(void)
     // the redo buffer.
     ins_compl_fixRedoBufForLeader(NULL);
 
-    // XXX:
     // Always add completion for the original text.
     VIM_CLEAR_STRING(compl_orig_text);
     compl_orig_text.length = (size_t)compl_length;
@@ -7143,23 +7167,14 @@ remove_old_matches(void)
  */
 #ifdef FEAT_COMPL_FUNC
     static void
-get_cpt_func_completion_matches(callback_T *cb UNUSED, int restore_leader)
+get_cpt_func_completion_matches(callback_T *cb UNUSED)
 {
     int	startcol = cpt_sources_array[cpt_sources_index].cs_startcol;
-    int	result;
-
-    VIM_CLEAR_STRING(cpt_compl_pattern);
 
     if (startcol == -2 || startcol == -3)
 	return;
 
-    if (restore_leader) // Re-insert the text removed by ins_compl_delete()
-	ins_compl_insert_bytes(compl_orig_text.string + get_compl_len(), -1);
-    result = set_compl_globals(startcol, curwin->w_cursor.col, TRUE);
-    if (restore_leader)
-	ins_compl_delete(); // Undo insertion
-
-    if (result == OK)
+    if (set_compl_globals(startcol, curwin->w_cursor.col, TRUE) == OK)
     {
 	expand_by_function(0, cpt_compl_pattern.string, cb);
 	cpt_sources_array[cpt_sources_index].cs_refresh_always =
@@ -7212,7 +7227,7 @@ cpt_compl_refresh(void)
 		}
 		cpt_sources_array[cpt_sources_index].cs_startcol = startcol;
 		if (ret == OK)
-		    get_cpt_func_completion_matches(cb, FALSE);
+		    get_cpt_func_completion_matches(cb);
 	    }
 	    else
 		cpt_sources_array[cpt_sources_index].cs_startcol = STARTCOL_NONE;
