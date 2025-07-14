@@ -2136,9 +2136,9 @@ A jump table for the options with a short description can be found at |Q_op|.
 		If the Dict returned by the {func} includes {"refresh": "always"},
 		the function will be invoked again whenever the leading text
 		changes.
-		If generating matches is potentially slow, |complete_check()|
-		should be used to avoid blocking and preserve editor
-		responsiveness.
+		If generating matches is potentially slow, call
+		|complete_check()| periodically to keep Vim responsive. This
+		is especially important for |ins-autocompletion|.
 	F	equivalent to using "F{func}", where the function is taken from
 		the 'completefunc' option.
 	o	equivalent to using "F{func}", where the function is taken from
