@@ -572,7 +572,7 @@ gchar_cursor(void)
 char_before_cursor(void)
 {
     if (curwin->w_cursor.col == 0)
-        return -1;
+	return -1;
 
     char_u *line = ml_get_curline();
 

@@ -1146,10 +1146,11 @@ to contribute.
 
 This mode is fully compatible with other completion modes.  You can invoke
 any of them at any time by typing |CTRL-X|, which temporarily suspends
-autocompletion. To use |i_CTRL-N| specifically, press |CTRL-E| first to
+autocompletion.  To use |i_CTRL-N| specifically, press |CTRL-E| first to
 dismiss the popup menu.
 
 To suppress messages during completion, see "c" and "C" in |'shortmess'|.
+
 
 FUNCTIONS FOR FINDING COMPLETIONS			*complete-functions*
 
