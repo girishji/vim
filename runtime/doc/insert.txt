@@ -1139,10 +1139,8 @@ but triggered automatically.  See |'autocomplete'|. The menu items are
 collected from the sources listed in the |'complete'| option.
 
 Unlike manual |i_CTRL-N| completion, this mode uses a decaying timeout to keep
-Vim responsive.  Sources earlier in the |'complete'| list are given more time,
-and if a source exceeds its time slice, it is interrupted and the next source
-is tried with a shorter slice.  However, every source is guaranteed a chance
-to contribute.
+Vim responsive.  Sources earlier in the |'complete'| list are given more time
+(higher priority), but every source is guaranteed a time slice, however small.
 
 This mode is fully compatible with other completion modes.  You can invoke
 any of them at any time by typing |CTRL-X|, which temporarily suspends
