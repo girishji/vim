@@ -163,6 +163,7 @@ runtime/ftplugin/expect.vim				@dkearns
 runtime/ftplugin/exports.vim				@mperry2
 runtime/ftplugin/fennel.vim				@gpanders
 runtime/ftplugin/fetchmail.vim				@dkearns
+runtime/ftplugin/fga.vim				@ribru17
 runtime/ftplugin/forth.vim				@jkotlinski
 runtime/ftplugin/fpcmake.vim				@dkearns
 runtime/ftplugin/freebasic.vim				@dkearns
@@ -251,6 +252,7 @@ runtime/ftplugin/pbtxt.vim				@lakshayg
 runtime/ftplugin/pdf.vim				@tpope
 runtime/ftplugin/perl.vim				@petdance @dkearns
 runtime/ftplugin/php.vim				@dkearns
+runtime/ftplugin/pkl.vim				@ribru17
 runtime/ftplugin/plsql.vim				@lee-lindley
 runtime/ftplugin/pod.vim				@petdance @dkearns
 runtime/ftplugin/poefilter.vim				@ObserverOfTime
@@ -308,6 +310,7 @@ runtime/ftplugin/tidy.vim				@dkearns
 runtime/ftplugin/tmux.vim				@ericpruitt
 runtime/ftplugin/toml.vim				@averms
 runtime/ftplugin/tt2html.vim				@petdance
+runtime/ftplugin/twig.vim				@ribru17
 runtime/ftplugin/typescript.vim				@dkearns
 runtime/ftplugin/typescriptreact.vim			@dkearns
 runtime/ftplugin/typst.vim				@saccarosium
