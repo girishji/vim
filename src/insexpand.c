@@ -6138,7 +6138,7 @@ ins_compl_next(
 check_elapsed_time(void)
 {
 #ifdef ELAPSED_FUNC
-    if (cpt_sources_array == NULL)
+    if (cpt_sources_array == NULL || cpt_sources_index < 0)
 	return;
 
     elapsed_T	*start_tv
