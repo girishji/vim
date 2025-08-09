@@ -5323,4 +5323,33 @@ func Test_autocomplete_timer()
   unlet g:CallCount
 endfunc
 
+func Test_autocompletedelay()
+  CheckScreendump
+
+  let lines =<< trim [SCRIPT]
+    call setline(1, ['foo', 'foobar', 'foobarbaz'])
+    set autocomplete
+  [SCRIPT]
+  call writefile(lines, 'XTest_autocomplete_delay', 'D')
+  let buf = RunVimInTerminal('-S XTest_autocomplete_delay', {'rows': 10})
+
+  call term_sendkeys(buf, "Gof")
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_1', {})
+
+  call term_sendkeys(buf, "\<Esc>:set autocompletedelay=500\<CR>")
+  call term_sendkeys(buf, "Gof")
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_2', {})
+  call term_sendkeys(buf, "o")
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_3', {})
+  sleep 500m
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_4', {})
+  call term_sendkeys(buf, "\<BS>")
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_5', {})
+  sleep 500m
+  call VerifyScreenDump(buf, 'Test_autocompletedelay_6', {})
+
+  call term_sendkeys(buf, "\<esc>")
+  call StopVimInTerminal(buf)
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab nofoldenable
