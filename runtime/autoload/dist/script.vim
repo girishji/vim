@@ -4,7 +4,7 @@ vim9script
 # Invoked from "scripts.vim" in 'runtimepath'
 #
 # Maintainer:	The Vim Project <https://github.com/vim/vim>
-# Last Change:	2025 Apr 24
+# Last Change:	2025 Aug 08
 # Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 export def DetectFiletype()
@@ -264,6 +264,7 @@ def DetectFromText(line1: string)
 
   # ELM Mail files
   elseif line1 =~ '^From \([a-zA-Z][a-zA-Z_0-9\.=-]*\(@[^ ]*\)\=\|-\) .* \(19\|20\)\d\d$'
+      || line1 =~ '^\creturn-path:\s<.*@.*>$'
     setl ft=mail
 
   # Mason
@@ -452,6 +453,12 @@ def DetectFromText(line1: string)
     # before any trailing comment text
   elseif line1 =~ '^#n\%($\|\s\)'
     setl ft=sed
+
+  elseif line1 =~ '^#\s\+Reconstructed via infocmp from file:'
+    setl ft=terminfo
+
+  elseif line1 =~ '^File: .*\.info,  Node: .*,  \%(Next\|Prev\): .*,  Up: \|This is the top of the INFO tree.'
+    setl ft=info
 
   else
     var lnum = 1
