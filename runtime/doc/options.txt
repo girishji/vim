@@ -2310,6 +2310,7 @@ A jump table for the options with a short description can be found at |Q_op|.
 		    prefix of matches (from all shown items or buffer-specific
 		    matches), highlighted with |hl-PreInsert|.  This occurs only
 		    when no menu item is selected.  Press CTRL-Y to accept.
+		    See also |preinserted()|.
 
 	   preview  Show extra information about the currently selected
 		    completion in the preview window.  Only works in

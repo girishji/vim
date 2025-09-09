@@ -7735,3 +7735,13 @@ cpt_compl_refresh(void)
     compl_matches = ins_compl_make_cyclic();
 #endif
 }
+
+/*
+ * "preinserted()" function
+ */
+    void
+f_preinserted(typval_T *argvars UNUSED, typval_T *rettv UNUSED)
+{
+    if (ins_compl_preinsert_effect())
+	rettv->vval.v_number = 1;
+}

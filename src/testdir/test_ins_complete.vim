@@ -5579,9 +5579,12 @@ func Test_autocompletedelay()
 endfunc
 
 func Test_autocomplete_completeopt_preinsert()
-  func GetLine()
+  func GetLine(check_preinserted = 0)
     let g:line = getline('.')
     let g:col = col('.')
+    if check_preinserted
+      assert_equa
+    endif
   endfunc
 
   call test_override("char_avail", 1)
@@ -5634,6 +5637,9 @@ func Test_autocomplete_completeopt_preinsert()
   " Should not work with fuzzy
   set cot+=fuzzy
   call DoTest("f", 'f', 2)
+
+  " preinserted()
+  
 
   %delete _
   let &l:undolevels = &l:undolevels

@@ -76,4 +76,5 @@ void ins_compl_enable_autocomplete(void);
 void free_insexpand_stuff(void);
 int ins_compl_has_autocomplete(void);
 int ins_compl_has_preinsert(void);
+void f_preinserted(typval_T *argvars UNUSED, typval_T *rettv UNUSED);
 /* vim: set ft=c : */
