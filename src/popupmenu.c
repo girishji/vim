@@ -197,10 +197,7 @@ set_pum_width_aligned_with_cursor(int width, int available_width)
     static void
 pum_compute_horizontal_placement(int cursor_col)
 {
-    int order[3];
     int desired_width = pum_base_width + pum_kind_width + pum_extra_width;
-    int usable_width = 0;
-    int item_widths[3] = { pum_base_width, pum_kind_width, pum_extra_width };
     int available_width;
 
 #ifdef FEAT_RIGHTLEFT
@@ -210,28 +207,18 @@ pum_compute_horizontal_placement(int cursor_col)
 #endif
 	available_width = Columns - cursor_col - pum_scrollbar;
 
-    pum_align_order(order);
-    for (int i = 0; i < 3; ++i)
-    {
-	usable_width += item_widths[order[i]];
-	if (order[i] == CPT_ABBR)
-	    break;
-    }
-
     // Align pum with "cursor_col"
     pum_col = cursor_col;
     if (set_pum_width_aligned_with_cursor(desired_width, available_width))
 	return;
-    if (set_pum_width_aligned_with_cursor(usable_width, available_width))
-	return;
-    // Truncate menu
+    // Show the pum truncated, provided it is at least as wide as 'pum_width'
     if (available_width > p_pw)
     {
 	pum_width = available_width;
 	return;
     }
 
-    // Align pum right edge with right edge of window
+    // Truncated pum is no longer aligned with "cursor_col"
 #ifdef FEAT_RIGHTLEFT
     if (pum_rl)
 	available_width = Columns - pum_scrollbar;
@@ -239,11 +226,9 @@ pum_compute_horizontal_placement(int cursor_col)
 #endif
 	available_width += cursor_col;
 
-    // Limit menu to 'pum_width' and truncate the rest
     if (available_width > p_pw)
     {
-	pum_width = p_pw + 1;
-
+	pum_width = p_pw + 1;  // Truncate beyond 'pum_width'
 #ifdef FEAT_RIGHTLEFT
 	if (pum_rl)
 	    pum_col = pum_width + pum_scrollbar;
