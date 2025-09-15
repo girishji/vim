@@ -157,15 +157,6 @@ pum_compute_vertical_placement(
 #endif
 }
 
-    static inline void
-pum_align_order(int *order)
-{
-    int is_default = cia_flags == 0;
-    order[0] = is_default ? CPT_ABBR : cia_flags / 100;
-    order[1] = is_default ? CPT_KIND : (cia_flags / 10) % 10;
-    order[2] = is_default ? CPT_MENU : cia_flags % 10;
-}
-
 /*
  * Try to set 'pum_width' so that it fits within available_width.
  * Returns TRUE if pum_width was successfully set, FALSE otherwise.
@@ -835,6 +826,15 @@ pum_draw_scrollbar(
     else
 #endif
 	screen_putchar(' ', row, pum_col + pum_width, attr);
+}
+
+    static inline void
+pum_align_order(int *order)
+{
+    int is_default = cia_flags == 0;
+    order[0] = is_default ? CPT_ABBR : cia_flags / 100;
+    order[1] = is_default ? CPT_KIND : (cia_flags / 10) % 10;
+    order[2] = is_default ? CPT_MENU : cia_flags % 10;
 }
 
 /*
