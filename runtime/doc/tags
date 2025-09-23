@@ -1541,6 +1541,7 @@ $quote	eval.txt	/*$quote*
 +vtp	various.txt	/*+vtp*
 +wayland	various.txt	/*+wayland*
 +wayland_clipboard	various.txt	/*+wayland_clipboard*
++wayland_focus_steal	various.txt	/*+wayland_focus_steal*
 +wildignore	various.txt	/*+wildignore*
 +wildmenu	various.txt	/*+wildmenu*
 +windows	various.txt	/*+windows*
@@ -2094,7 +2095,20 @@ $quote	eval.txt	/*$quote*
 :%	cmdline.txt	/*:%*
 :&	change.txt	/*:&*
 :&&	change.txt	/*:&&*
-:'	cmdline.txt	/*:'*
+:''	cmdline.txt	/*:''*
+:'(	cmdline.txt	/*:'(*
+:')	cmdline.txt	/*:')*
+:'.	cmdline.txt	/*:'.*
+:'<	cmdline.txt	/*:'<*
+:'>	cmdline.txt	/*:'>*
+:'X	cmdline.txt	/*:'X*
+:'[	cmdline.txt	/*:'[*
+:']	cmdline.txt	/*:']*
+:'^	cmdline.txt	/*:'^*
+:'quote	cmdline.txt	/*:'quote*
+:'x	cmdline.txt	/*:'x*
+:'{	cmdline.txt	/*:'{*
+:'}	cmdline.txt	/*:'}*
 :++	vim9.txt	/*:++*
 :,	cmdline.txt	/*:,*
 :--	vim9.txt	/*:--*
@@ -2212,6 +2226,7 @@ $quote	eval.txt	/*$quote*
 :Rexplore	pi_netrw.txt	/*:Rexplore*
 :RmVimball	pi_vimball.txt	/*:RmVimball*
 :Run	terminal.txt	/*:Run*
+:RunOrContinue	terminal.txt	/*:RunOrContinue*
 :RustEmitAsm	ft_rust.txt	/*:RustEmitAsm*
 :RustEmitIr	ft_rust.txt	/*:RustEmitIr*
 :RustExpand	ft_rust.txt	/*:RustExpand*
@@ -2233,6 +2248,7 @@ $quote	eval.txt	/*$quote*
 :Termdebug	terminal.txt	/*:Termdebug*
 :TermdebugCommand	terminal.txt	/*:TermdebugCommand*
 :Texplore	pi_netrw.txt	/*:Texplore*
+:ToggleBreak	terminal.txt	/*:ToggleBreak*
 :Tutor	pi_tutor.txt	/*:Tutor*
 :URLOpen	eval.txt	/*:URLOpen*
 :Until	terminal.txt	/*:Until*
@@ -4726,6 +4742,7 @@ E1565	remote.txt	/*E1565*
 E1566	remote.txt	/*E1566*
 E1567	remote.txt	/*E1567*
 E1568	options.txt	/*E1568*
+E1569	builtin.txt	/*E1569*
 E157	sign.txt	/*E157*
 E158	sign.txt	/*E158*
 E159	sign.txt	/*E159*
@@ -7539,6 +7556,7 @@ ft-lf-syntax	syntax.txt	/*ft-lf-syntax*
 ft-lifelines-syntax	syntax.txt	/*ft-lifelines-syntax*
 ft-lisp-syntax	syntax.txt	/*ft-lisp-syntax*
 ft-lite-syntax	syntax.txt	/*ft-lite-syntax*
+ft-log-syntax	syntax.txt	/*ft-log-syntax*
 ft-lpc-syntax	syntax.txt	/*ft-lpc-syntax*
 ft-lua-plugin	filetype.txt	/*ft-lua-plugin*
 ft-lua-syntax	syntax.txt	/*ft-lua-syntax*

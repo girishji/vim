@@ -1,7 +1,7 @@
 " Vim support file to detect file types
 "
 " Maintainer:		The Vim Project <https://github.com/vim/vim>
-" Last Change:		2025 Aug 31
+" Last Change:		2025 Sep 14
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " Listen very carefully, I will say this only once
@@ -398,6 +398,9 @@ au BufNewFile,BufRead *.ck			setf chuck
 " Comshare Dimension Definition Language
 au BufNewFile,BufRead *.cdl			setf cdl
 
+" Codeowners
+au BufNewFile,BufRead CODEOWNERS		setf codeowners
+
 " Conary Recipe
 au BufNewFile,BufRead *.recipe			setf conaryrecipe
 
@@ -626,6 +629,9 @@ au BufNewFile,BufRead lynx.cfg			setf lynx
 
 " LyRiCs
 au BufNewFile,BufRead *.lrc			setf lyrics
+
+" Mamba configuration file
+au BufNewFile,BufRead .mambarc,mambarc		setf yaml
 
 " MLIR
 au BufNewFile,BufRead *.mlir			setf mlir
@@ -1339,6 +1345,9 @@ au BufNewFile,BufRead *.jl			setf julia
 
 " Just
 au BufNewFile,BufRead \c{,*.}justfile,\c*.just setf just
+
+" Kitty
+au BufNewFile,BufRead kitty.conf,*/kitty/*.conf setf kitty
 
 " KAREL
 au BufNewFile,BufRead *.kl setf karel
@@ -3409,6 +3418,10 @@ au BufNewFile,BufRead *.blp			setf blueprint
 
 " Blueprint build system file
 au BufNewFile,BufRead *.bp			setf bp
+
+" Generic log file
+" Disabled cause it is too distracting
+" au BufNewFile,BufRead *.log,*_log,*.LOG,*_LOG	setf log
 
 " Use the filetype detect plugins.  They may overrule any of the previously
 " detected filetypes.

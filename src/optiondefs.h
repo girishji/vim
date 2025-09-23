@@ -26,6 +26,7 @@
 
 // Definition of the PV_ values for buffer-local options.
 // The BV_ values are defined in option.h.
+#define PV_AC		OPT_BOTH(OPT_BUF(BV_AC))
 #define PV_AI		OPT_BUF(BV_AI)
 #define PV_AR		OPT_BOTH(OPT_BUF(BV_AR))
 #define PV_BKC		OPT_BOTH(OPT_BUF(BV_BKC))
@@ -390,7 +391,7 @@ static struct vimoption options[] =
 			    SCTX_INIT},
 #ifdef ELAPSED_FUNC
     {"autocomplete",  "ac", P_BOOL|P_VI_DEF,
-			    (char_u *)&p_ac, PV_NONE, NULL,
+			    (char_u *)&p_ac, PV_AC, NULL,
 			    NULL, {(char_u *)FALSE, (char_u *)0L} SCTX_INIT},
     {"autocompletedelay", "acl", P_NUM|P_VI_DEF,
 			    (char_u *)&p_acl, PV_NONE, NULL, NULL,
@@ -2228,9 +2229,9 @@ static struct vimoption options[] =
 			    {(char_u *)NULL, (char_u *)0L}
 #endif
 			    SCTX_INIT},
-    {"ruler",	    "ru",   P_BOOL|P_VI_DEF|P_VIM|P_RSTAT,
+    {"ruler",	    "ru",   P_BOOL|P_VIM|P_RSTAT,
 			    (char_u *)&p_ru, PV_NONE, NULL, NULL,
-			    {(char_u *)FALSE, (char_u *)0L} SCTX_INIT},
+			    {(char_u *)FALSE, (char_u *)TRUE} SCTX_INIT},
     {"rulerformat", "ruf",  P_STRING|P_VI_DEF|P_ALLOCED|P_RSTAT|P_MLE,
 #ifdef FEAT_STL_OPT
 			    (char_u *)&p_ruf, PV_NONE, did_set_rulerformat, NULL,
@@ -3009,7 +3010,7 @@ static struct vimoption options[] =
 #endif
 			    SCTX_INIT},
     {"wlsteal",	    "wst",  P_BOOL|P_VI_DEF,
-#ifdef FEAT_WAYLAND_CLIPBOARD
+#ifdef FEAT_WAYLAND_CLIPBOARD_FS
 			    (char_u *)&p_wst, PV_NONE, did_set_wlsteal, NULL,
 			    {(char_u *)FALSE, (char_u *)0L}
 #else

@@ -5740,7 +5740,7 @@ mch_call_shell_fork(
 #ifdef FEAT_WAYLAND
 		    // Handle Wayland events such as sending data as the source
 		    // client.
-		    wayland_client_update();
+		    wayland_update();
 #endif
 		}
 finished:
@@ -5814,7 +5814,7 @@ finished:
 #ifdef FEAT_WAYLAND
 		    // Handle Wayland events such as sending data as the source
 		    // client.
-		    wayland_client_update();
+		    wayland_update();
 #endif
 
 		    // Wait for 1 to 10 msec. 1 is faster but gives the child
@@ -6666,6 +6666,9 @@ RealWaitForChar(int fd, long msec, int *check_for_gpm UNUSED, int *interrupted)
 	int		mzquantum_used = FALSE;
 # endif
 #endif
+#ifdef FEAT_WAYLAND
+	int		wayland_fd = -1;
+#endif
 #ifndef HAVE_SELECT
 			// each channel may use in, out and err
 	struct pollfd   fds[7 + 3 * MAX_OPEN_CHANNELS];
@@ -6709,11 +6712,11 @@ RealWaitForChar(int fd, long msec, int *check_for_gpm UNUSED, int *interrupted)
 	}
 # endif
 
-# ifdef FEAT_WAYLAND_CLIPBOARD
-	if (wayland_may_restore_connection())
+# ifdef FEAT_WAYLAND
+	if ((wayland_fd = wayland_prepare_read()) >= 0)
 	{
 	    wayland_idx = nfd;
-	    fds[nfd].fd = wayland_display_fd;
+	    fds[nfd].fd = wayland_fd;
 	    fds[nfd].events = POLLIN;
 	    nfd++;
 	}
@@ -6777,13 +6780,9 @@ RealWaitForChar(int fd, long msec, int *check_for_gpm UNUSED, int *interrupted)
 	}
 # endif
 
-# ifdef FEAT_WAYLAND_CLIPBOARD
-	// Technically we should first call wl_display_prepare_read() before
-	// polling the fd, then read and dispatch after we poll. However that is
-	// only needed for multi threaded environments to prevent deadlocks so
-	// we are fine.
-	if (fds[wayland_idx].revents & POLLIN)
-	    wayland_client_update();
+# ifdef FEAT_WAYLAND
+	if (wayland_idx >= 0)
+	    wayland_poll_check(fds[wayland_idx].revents);
 # endif
 
 # ifdef FEAT_XCLIPBOARD
@@ -6876,14 +6875,13 @@ select_eintr:
 	}
 # endif
 
-# ifdef FEAT_WAYLAND_CLIPBOARD
-
-	if (wayland_may_restore_connection())
+# ifdef FEAT_WAYLAND
+	if ((wayland_fd = wayland_prepare_read()) >= 0)
 	{
-	    FD_SET(wayland_display_fd, &rfds);
+	    FD_SET(wayland_fd, &rfds);
 
-	    if (maxfd < wayland_display_fd)
-		maxfd = wayland_display_fd;
+	    if (maxfd < wayland_fd)
+		maxfd = wayland_fd;
 	}
 # endif
 
@@ -6983,13 +6981,9 @@ select_eintr:
 	    socket_server_uninit();
 # endif
 
-# ifdef FEAT_WAYLAND_CLIPBOARD
-	// Technically we should first call wl_display_prepare_read() before
-	// polling the fd, then read and dispatch after we poll. However that is
-	// only needed for multi threaded environments to prevent deadlocks so
-	// we are fine.
-	if (ret > 0 && FD_ISSET(wayland_display_fd, &rfds))
-	    wayland_client_update();
+# ifdef FEAT_WAYLAND
+	if (wayland_fd != -1)
+	    wayland_select_check(ret > 0 && FD_ISSET(wayland_fd, &rfds));
 # endif
 
 # ifdef FEAT_XCLIPBOARD
@@ -9546,7 +9540,7 @@ socket_server_send(
 	char_u *str,	    // What to send
 	char_u **result,    // Set to result of expr
 	char_u **receiver,  // Full path of "name"
-	int is_expr,	    // Is it an expresison or keystrokes?
+	int is_expr,	    // Is it an expression or keystrokes?
 	int timeout,	    // In milliseconds
 	int silent)	    // Don't complain if socket doesn't exist
 {
@@ -9628,7 +9622,7 @@ socket_server_send(
 	else
 	    vim_free(path);
 
-	// Exit, we aren't waiting for a reponse
+	// Exit, we aren't waiting for a response
 	return 0;
     }
 
@@ -9935,7 +9929,7 @@ socket_server_init_cmd(ss_cmd_T *cmd, ss_cmd_type_T type)
 
 /*
  * Append a message to a command. Note that "len" is the length of contents.
- * Returns OK on sucess and FAIL on failure
+ * Returns OK on success and FAIL on failure
  */
     static int
 socket_server_append_msg(ss_cmd_T *cmd, char_u type, char_u *contents, int len)
@@ -10386,7 +10380,7 @@ socket_server_exec_cmd(ss_cmd_T *cmd, int fd)
 			    STRLEN(result) + 1); // We add +1 in case "result"
 						 // is an empty string.
 		else
-		    // An error occured, return an error msg instead
+		    // An error occurred, return an error msg instead
 		    socket_server_append_msg(&rcmd, SS_MSG_TYPE_STRING,
 			    (char_u *)_(e_invalid_expression_received),
 			    STRLEN(e_invalid_expression_received));
@@ -10563,7 +10557,7 @@ socket_server_dispatch(int timeout)
 }
 
 /*
- * Check if socket "name" is reponsive by sending an ALIVE command. This does
+ * Check if socket "name" is responsive by sending an ALIVE command. This does
  * not require the socket server to be active.
  */
     static int

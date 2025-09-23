@@ -1058,6 +1058,24 @@ ins_compl_insert_bytes(char_u *p, int len)
 }
 
 /*
+ * Get current completion leader
+ */
+    char_u *
+ins_compl_leader(void)
+{
+    return compl_leader.string != NULL ? compl_leader.string : compl_orig_text.string;
+}
+
+/*
+ * Get current completion leader length
+ */
+    static size_t
+ins_compl_leader_len(void)
+{
+    return compl_leader.string != NULL ? compl_leader.length : compl_orig_text.length;
+}
+
+/*
  * Checks if the column is within the currently inserted completion text
  * column range. If it is, it returns a special highlight attribute.
  * -1 means normal item.
@@ -1828,24 +1846,6 @@ ins_compl_show_pum(void)
 #define DICT_EXACT	(2)	// "dict" is the exact name of a file
 
 /*
- * Get current completion leader
- */
-    char_u *
-ins_compl_leader(void)
-{
-    return compl_leader.string != NULL ? compl_leader.string : compl_orig_text.string;
-}
-
-/*
- * Get current completion leader length
- */
-    size_t
-ins_compl_leader_len(void)
-{
-    return compl_leader.string != NULL ? compl_leader.length : compl_orig_text.length;
-}
-
-/*
  * Add any identifiers that match the given pattern "pat" in the list of
  * dictionary files "dict_start" to the list of completions.
  */
@@ -2375,7 +2375,7 @@ ins_compl_preinsert_effect(void)
  * Returns TRUE if autocompletion is active.
  */
     int
-ins_compl_has_autocomplete(void)
+ins_compl_autocomplete_enabled(void)
 {
     return compl_autocomplete;
 }
@@ -2424,6 +2424,10 @@ ins_compl_bs(void)
 	return K_BS;
     }
 
+    // Clear selection if a menu item is currently selected in autocompletion
+    if (compl_autocomplete && compl_first_match)
+	compl_shown_match = compl_first_match;
+
     ins_compl_new_leader();
     if (compl_shown_match != NULL)
 	// Make sure current match is not a hidden item.
@@ -2443,6 +2447,16 @@ ins_compl_need_restart(void)
     return compl_was_interrupted
 	|| ((ctrl_x_mode_function() || ctrl_x_mode_omni())
 						  && compl_opt_refresh_always);
+}
+
+/*
+ * Return TRUE if 'autocomplete' option is set
+ */
+    int
+ins_compl_has_autocomplete(void)
+{
+    // Use buffer-local setting if defined (>= 0), otherwise use global
+    return curbuf->b_p_ac >= 0 ? curbuf->b_p_ac : p_ac;
 }
 
 /*
@@ -2494,8 +2508,7 @@ ins_compl_new_leader(void)
 	save_w_wrow = curwin->w_wrow;
 	save_w_leftcol = curwin->w_leftcol;
 	compl_restarting = TRUE;
-	if (p_ac)
-	    compl_autocomplete = TRUE;
+	compl_autocomplete = ins_compl_has_autocomplete();
 	if (ins_complete(Ctrl_N, FALSE) == FAIL)
 	    compl_cont_status = 0;
 	compl_restarting = FALSE;
@@ -2513,7 +2526,7 @@ ins_compl_new_leader(void)
 		    && compl_first_match)
 	    {
 		compl_shown_match = compl_first_match;
-		if (compl_shows_dir_forward())
+		if (compl_shows_dir_forward() && !compl_autocomplete)
 		    compl_shown_match = compl_first_match->cp_next;
 	    }
 	}
@@ -3447,7 +3460,7 @@ set_cpt_callbacks(optset_T *args)
 	}
     }
 
-    if (!local) // ':set' used insted of ':setlocal'
+    if (!local) // ':set' used instead of ':setlocal'
 	// Cache the callback array
 	if (copy_cpt_callbacks(&cpt_cb, &cpt_cb_count, curbuf->b_p_cpt_cb,
 		    curbuf->b_p_cpt_count) != OK)
@@ -5001,8 +5014,9 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		looped_around = FALSE;
     char_u	*ptr = NULL;
     int		len = 0;
-    int		in_fuzzy_collect = (cfc_has_mode() && compl_length > 0)
-	|| ((get_cot_flags() & COT_FUZZY) && compl_autocomplete);
+    int		in_fuzzy_collect = !compl_status_adding()
+		&& ((cfc_has_mode() && compl_length > 0)
+		    || ((get_cot_flags() & COT_FUZZY) && compl_autocomplete));
     char_u	*leader = ins_compl_leader();
     int		score = FUZZY_SCORE_NONE;
     int		in_curbuf = st->ins_buf == curbuf;
@@ -5857,12 +5871,13 @@ find_common_prefix(size_t *prefix_len, int curbuf_only)
 	    if (!match_limit_exceeded && (!curbuf_only
 			|| cpt_sources_array[cur_source].cs_flag == '.'))
 	    {
-		if (first == NULL)
+		if (first == NULL && STRNCMP(ins_compl_leader(),
+			    compl->cp_str.string, ins_compl_leader_len()) == 0)
 		{
 		    first = compl->cp_str.string;
 		    len = (int)STRLEN(first);
 		}
-		else
+		else if (first != NULL)
 		{
 		    int j = 0;  // count in bytes
 		    char_u *s1 = first;
@@ -5890,7 +5905,7 @@ find_common_prefix(size_t *prefix_len, int curbuf_only)
 
     vim_free(match_count);
 
-    if (len > get_compl_len())
+    if (len > (int)ins_compl_leader_len())
     {
 	*prefix_len = (size_t)len;
 	return first;
@@ -6002,12 +6017,15 @@ ins_compl_show_filename(void)
 	    MB_PTR_ADV(s);
 	}
     }
-    msg_hist_off = TRUE;
-    vim_snprintf((char *)IObuff, IOSIZE, "%s %s%s", lead,
-	    s > compl_shown_match->cp_fname ? "<" : "", s);
-    msg((char *)IObuff);
-    msg_hist_off = FALSE;
-    redraw_cmdline = FALSE;	    // don't overwrite!
+    if (!compl_autocomplete)
+    {
+	msg_hist_off = TRUE;
+	vim_snprintf((char *)IObuff, IOSIZE, "%s %s%s", lead,
+		s > compl_shown_match->cp_fname ? "<" : "", s);
+	msg((char *)IObuff);
+	msg_hist_off = FALSE;
+	redraw_cmdline = FALSE;	    // don't overwrite!
+    }
 }
 
 /*
@@ -7105,11 +7123,6 @@ ins_compl_start(void)
 	    compl_length = 0;
 	    compl_col = curwin->w_cursor.col;
 	    compl_lnum = curwin->w_cursor.lnum;
-	}
-	else if (ctrl_x_mode_normal() && cfc_has_mode())
-	{
-	    compl_startpos = curwin->w_cursor;
-	    compl_cont_status &= CONT_S_IPOS;
 	}
     }
     else
